@@ -21,7 +21,7 @@ names.  We'll allow an option for converting `_x` to `X` in case users want to u
 or `dromedaryCase`, or even if they want to go all-in with `_prefixed_snake_case` for variable
 names (since `_prefixed_snake_case` would be equivalent with `Prefixed_snake_case`
 with the `_x` equals `X` rule).  For the remainder of this document, we'll use `Variable_case`,
-`type_case`, and `function_case`.
+`type_case`, and `function_case`, although the latter two are indistinguishable.
 
 Another change is that oh-lang uses `:` (or `;`) for declarations and `=` for reassignment,
 so that declaring a variable and specifying a variable will work the same inside and outside
@@ -134,7 +134,7 @@ While there are a lot of good formatting options out there,
 [Horstmann brace style](https://en.wikipedia.org/wiki/Indentation_style#Horstmann) is
 hands-down the coolest-looking indentation style.  Similarly, `lower_snake_case`
 and `Initial_upper_snake_case` make for more readable long names, but they also
-look cooler than their `camelCase` and `PascalCase` counterparts.
+look cooler than their `dromedaryCase` and `PascalCase` counterparts.
 
 ## simplicity
 
