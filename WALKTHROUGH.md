@@ -114,6 +114,13 @@ and `I` for methods that start with a verb, e.g., `I draw()`.
 TODO: can we get rid of the need for `My`/`Me`/`I` and just use `::my_method` or `;;other_method`
 inside function calls?  that way we wouldn't need to prefix `My X` for instance variables either.
 parent variables would still need to be referenced via `Parent X`.
+every once in a while i think about something that would break if we do this,
+and i forget to write it down.  one of these days i'll put it here.
+ACTUALLY -- i think it's this: being able to overload methods that are keywords, like
+`return` or `pass` or `break`.  it's obvious from the context if you want your method,
+if it needs to be prefixed with `I/Me/My`.  it's not obvious if it's inferred.
+TODO: should we go all in on underscores like `_my x(_new_x_value)`, but then
+instead of `_i` `_me` or `_my` we use `_` for `this`/`self`?  e.g., `_ x(_new_x_value)`.
 
 Class getters/setters do not use `::get_x(): dbl` or `;;set_x(Dbl): null`, but rather
 just `::x(): dbl` and `;;x(Dbl;.): null` for a private variable `X; dbl`.  This is one
@@ -2016,6 +2023,12 @@ Nested = (My_ref: My_value2)
 
 See also [destructuring](#destructuring).
 
+### refer function
+
+You can create a reference via getters and setters using the `refer` function, which
+has the following signature: `refer(~R;, @Getter fn(R): t, @Setter fn(R;, T.): null): (T;)`.
+It extends a base reference to `R` to provide a reference to a `t` instance.
+
 ### default-name arguments in functions
 
 For functions with one argument (per type) where the variable name doesn't matter,
@@ -3897,6 +3910,11 @@ them, but this is done with syntactical sugar.  That is,
 even when accessed/modified within the class.  The getters/setters are methods
 named the `function_case` version of the `Variable_case` variable,
 with various arguments to determine the desired action.
+TODO: at some point we need to have a "base case" so that we don't infinitely recurse;
+should a parent class not call the child class accessors?  or should we only
+not recurse when we're in a method like `;;x(X): { My X = X }`?  or should we
+avoid recursing if the variable was defined in the class itself?  (probably the
+latter, as it's the least surprising.)
 
 ```
 # for example, this class:
@@ -3910,50 +3928,35 @@ example:
 [   @invisible
     X; str
 ]
-{   # getter: calls an external function with X, which can
-    #         avoid a copy if the function argument is readonly.
-    # TODO: without MMR, do no-copy getters/swappers/modifiers
-    #       even make sense to retain?
-    #       i like them for "check data after modified"...
+{   # no-copy readonly reference getter.
     @visibility
-    ::x(fn(Str): ~t): fn(My X)
+    ::x(): (Str)
+        return (My X)
 
-    # copy.  returns a copied value of `X`.  this method
-    # has lower priority than the no-copy getter above.
-    @visibility
-    ::x(): My X
+    # no-copy writable reference getter.
+    ;;x(): (Str;)
+        return (My X;)
 
-    # move X from this temporary; no-copy
-    @visibility
-    ..x(): My X!
+    # copy getter; has lower priority than no-copy getters.
+    ::x(): Str
+        return My X
 
-    # TODO: do we just want to allow reference access here, e.g.,
-    #       `;;x(): (Str;)` and `::x(): (Str)`?
-    # move+reset (moot)
-    @visibility
-    ;;x()!: str
-        return My X!
-
-    # swapper: swaps the value of X with whatever is passed in
-    #          returns the old value of X.
-    @visibility
-    ;;x(Str;.):
+    # setter.
+    ;;x(Str.):
         My X <-> Str
 
-    # modifier: allows the user to modify the value of X
-    #           without copying it, using references.
+    # swapper: swaps the value of X with whatever is passed in.
     @visibility
-    ;;x(fn(Str;): ~t): fn(My X;)
+    ;;x(Str;):
+        My X <-> Str
 
-    # note that the no-copy getter and modifier can be 
-    # read/write-template  defined like this:
-    ;:x(fn(Str;:): ~t): fn(My X;:)
+    # no-copy "take" method.  moves X from this temporary.
+    @visibility
+    ..x(): My X!
 }
 W = example()
-W x(fn(Str;)
-    Str += ", world"
-)
-W x((Str): print(Str))
+W x(W x() + ", world")
+print(W x())
 ```
 
 If you define overloads for any of these methods on child classes,
@@ -3965,31 +3968,52 @@ even if the undefined method is requested.  The same is true of swapper
 and modifier classes.
 
 ```
-# a class with a copy method gets a getter method automatically:
-just_copyable: [...]
+# a class with a getter and setter gets reference getters automatically:
+just_copyable: [@invisible A_var; int]
 {   ::some_var(): int
-        return 1000
+        return My A_var - 1000
+
+    ;;some_var(Int.): null
+        My A_var = Int + 1000
 
     #(#
-    # the following becomes automatically defined:
-    ::some_var(fn(Int): ~t): t
-        Some_var: My some_var()
-        return fn(Some_var)
+    # the following references become automatically defined;
+    # they are just thin wrappers around the getters/setters.
+
+    # writable reference
+    ;;some_var(): (Int;)
+        return refer
+        (   Me;
+            some_var($$Just_copyable)
+            some_var($$Just_copyable;, $$Int.)
+        )
+
+    # readonly reference
+    ::some_var(): (Int)
+        return refer
+        (   Me
+            some_var($$Just_copyable)
+        )
+
+    # similarly a no-copy take method becomes defined based on the getter.
+    ..some_var(): int
+        return My A_var! - 1000
     #)#
 }
 
-# a class with a getter method gets a copy method automatically:
+# a class with a reference getter method gets a copy getter automatically:
 just_gettable: [@invisible Some_var; int]
-{   ::some_var(fn(Int): ~t): fn(My Some_var)
+{   ::some_var(): (My Some_var)
 
     #(#
     # the following becomes automatically defined:
     ::some_var(): int
-        return My some_var(fn(Int): Int)
+        # uses automatic conversion of (Int) -> int:
+        return My some_var()
     #)#
 }
 
-# a class with a swapper method gets a modifier and move+reset method automatically:
+# a class with a swapper method gets a setter and taker method automatically:
 just_swappable: [@invisible Some_var; int]
 {   @visibility
     ;;some_var(Int;): null
@@ -4003,21 +4027,11 @@ just_swappable: [@invisible Some_var; int]
 
     #(#
     # the following modifier becomes automatically defined:
-    ;;some_var(fn(Int;): ~t): t
-        Temporary; int
-        # swap Some_var into Temporary:
-        My some_var(Temporary;)    # could also write `My Some_var <-> Temporary`
-        T: fn(Temporary;)
-        # swap Temporary back into Some_var:
-        My some_var(Temporary;)
-        return T!
-
-    # the following temp value modifier becomes automatically defined
     ;;some_var(Int.): null
         My some_var(Int;)
 
-    # and the following move+reset method becomes automatically defined:
-    ;;some_var()!: t
+    # and the following take method becomes automatically defined:
+    ..some_var(): t
         Temporary; int
         # swap Some_var into Temporary:
         My some_var(Temporary;)    # could also write `My Some_var <-> Temporary`
@@ -4025,39 +4039,32 @@ just_swappable: [@invisible Some_var; int]
     #)#
 }
 
-# a class with a modifier method gets a swapper and move+reset method automatically:
-just_moddable: [@invisible Some_var; int]
-{   ;;some_var(fn(Int;): ~t): t
-        T: fn(My Some_var;)
-        # you can do some checks/modifications on Some_var here if you want,
+# a class with a reference method gets a swapper and taker method automatically:
+just_referable: [@invisible Some_var; int]
+{   ;;some_var(): (Int;)
+        # you can do some checks/modifications on `Me` here if you want,
         # though it's best not to surprise developers
-        return T!
+        ...
 
     #(#
     # the following swapper becomes automatically defined:
-    ;;some_var(Int;.): null
-        My some_var((@Old Int;): null
-            Int <-> @Old Int
-        )
+    ;;some_var(Int;): null
+        Int <-> My some_var()
 
-    # the following temp modifier becomes automatically defined:
+    # the following setter becomes automatically defined:
     ;;some_var(Int.): null
-        My some_var((@Old Int;): null
-            @Old Int = Int!
-        )
+        My some_var() = Int!
 
-    # and the following move+reset method becomes automatically defined:
-    ;;some_var()!: t
+    # and the following taker method becomes automatically defined:
+    ..some_var(): t
         Result; int
-        My some_var((Int;): null
-             Result <-> Int
-        )
+        Result <-> My some_var()
         return Result!
     #)#
 }
 
-# A class with just a moot (move+reset) method doesn't get swapper and modifier methods automatically;
-# the moot method is in some sense a one way modification (pull only) whereas swapper and
+# A class with just a take method doesn't get swapper and modifier methods automatically;
+# the take method is in some sense a one way modification (pull only) whereas swapper and
 # modifier methods are two way (push and pull).
 ```
 
@@ -7214,8 +7221,7 @@ wow(Input fn(): string): fn(): int
 
 We want to allow a `caller`/`callee` contract which enables methods defined
 on one class instance to be called by another class instance, without being
-in the same nested scope.  (This is strictly regulated, since it is an exception
-to the "no pointers" rule.)  The `caller` which will call the callback needs
+in the same nested scope.  The `caller` which will call the callback needs
 to be defined before the `callee`, e.g., as a singleton or other instance.
 When the `callee` is descoped, it will deregister itself with the `caller`
 internally, so that the `caller` will no longer call the `callee`.
