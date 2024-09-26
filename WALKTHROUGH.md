@@ -121,11 +121,11 @@ of the benefits of using `function_case` for functions/methods and `Variable_cas
 for variables; we can easily distinguish intent without additional verbs.
 
 oh-lang uses result-passing instead of exception-throwing in order to make it clear
-when errors can occur.  The `hm[ok, uh]` class handles this, with `ok` being the
-type of a valid result, and `uh` being the type of an error result.  You can specify
-the types via `hm[ok: int, uh: str]` for `ok` being `int` and `uh` being a `str`.
-If the `ok` and `uh` types are distinct, you don't need to wrap a return value in
-`ok(Valid_result)` and `uh(Error_result)`; you can just return `Valid_result` or `Error_result`.
+when errors can occur.  The `hm[ok, er]` class handles this, with `ok` being the
+type of a valid result, and `er` being the type of an error result.  You can specify
+the types via `hm[ok: int, er: str]` for `ok` being `int` and `er` being a `str`.
+If the `ok` and `er` types are distinct, you don't need to wrap a return value in
+`ok(Valid_result)` and `er(Error_result)`; you can just return `Valid_result` or `Error_result`.
 
 ## coolness
 
@@ -139,7 +139,7 @@ look cooler than their `dromedaryCase` and `PascalCase` counterparts.
 ## simplicity
 
 We don't require a different function name for each method to convert a result class
-into a new one, e.g., to transform the `ok` result or the `uh` error.  In oh-lang, we
+into a new one, e.g., to transform the `ok` result or the `er` error.  In oh-lang, we
 allow overloading, so converting a result from one type to another, or extracting a
 default value for an error, all use an overloaded `map` method, so there's no mental
 overhead here.  Since overloads are not possible in Rust, there is an abundance of methods, e.g.,
@@ -949,7 +949,7 @@ Notice we use `assert` to shortcircuit function evaluation and return an error r
 ```
 # Going from a floating point number to an integer should be done carefully...
 X: dbl(5.43)
-Safe_cast: X int()                   # Safe_cast is a result type (`hm[ok: int, Number_conversion uh]`)
+Safe_cast: X int()                   # Safe_cast is a result type (`hm[ok: int, Number_conversion er]`)
 # also OK: `Safe_cast: int(X)`.
 Q: X int() assert()                 # returns an error since `X` is not representable as an integer
 Y: X round(Down) int() assert()     # Y = 5.  equivalent to `X floor()`
@@ -983,7 +983,7 @@ scaled8:
     @private
     Scale: 32_u8
 
-    i(Flt): hm[ok: me, uh: one_of[Negative, Too_big]]
+    i(Flt): hm[ok: me, er: one_of[Negative, Too_big]]
         Scaled_value: round(Flt * Scale)
         if Scaled_value < 0
             return Negative
@@ -999,7 +999,7 @@ scaled8:
         My Scaled_value flt() / my Scale flt()
 
     # if you have representability issues, you can return a result instead.
-    ::int(): hm[ok: int, Number_conversion uh]
+    ::int(): hm[ok: int, Number_conversion er]
         if My Scaled_value % my Scale != 0
             Number_conversion Not_an_integer
         else
@@ -1013,7 +1013,7 @@ dbl(Scaled8): dbl
     Scaled8 Scaled_value dbl() / scaled8 Scale dbl()
 
 # global function which returns a result, can be called like `Scaled8 u16()`
-u[Bits: count](Scaled8): hm[ok: u[Bits], Number_conversion uh]
+u[Bits: count](Scaled8): hm[ok: u[Bits], Number_conversion er]
     if Scaled8 Scaled_value % scaled8 Scale != 0
         Number_conversion Not_an_integer
     else
@@ -1071,10 +1071,10 @@ and `my_function Outputs`.
 ## type overloads (generics only)
 
 Similar to defining a function overload, we can define type overloads for generic types.
-For example, the generic result class in oh-lang is `hm[ok, uh: non_null]`, which
-encapsulates an ok value (`ok`) or a non-nullable error (`uh`).  For your custom class you
-may not want to specify `hm[ok: my_ok_type, uh: my_class_uh]` all the time for your custom
-error type `my_class_uh`, so you can define `hm[of]: hm[ok: of, uh: my_class_uh]` and
+For example, the generic result class in oh-lang is `hm[ok, er: non_null]`, which
+encapsulates an ok value (`ok`) or a non-nullable error (`er`).  For your custom class you
+may not want to specify `hm[ok: my_ok_type, er: my_class_uh]` all the time for your custom
+error type `my_class_uh`, so you can define `hm[of]: hm[ok: of, er: my_class_uh]` and
 use e.g. `hm[int]` to return an integer or an error of type `my_class_uh`.  Shadowing variables is
 invalid in oh-lang, but overloads are valid.  Note however that we disallow redefining
 an overload, as that would be the equivalent of shadowing.
@@ -1083,7 +1083,7 @@ an overload, as that would be the equivalent of shadowing.
 
 Almost all operations should have result-like syntax.  e.g., `A * B` can overflow (or run out of memory for `int`).
 same for `A + B` and `A - B`.  `A // B` is safe.  However, instead of making oh-lang always assert,
-we will use `multiply(~First A, Second A): hm[ok: a, Number_conversion uh]` and then have
+we will use `multiply(~First A, Second A): hm[ok: a, Number_conversion er]` and then have
 `A1 * A2` always give an `a` result by panicking if we run out of memory.  i.e.,
 ```
 number::*(You): me
@@ -1343,17 +1343,17 @@ does not change the instance but returns a sorted copy of the array (`::sort(): 
 
 ```
 # there are better ways to get a median, but just to showcase member access:
-get_median_slow(Array[int]): hm[ok: int, uh: string]
+get_median_slow(Array[int]): hm[ok: int, er: string]
     if Array count() == 0
-        return uh("no elements in array, can't get median.")
+        return er("no elements in array, can't get median.")
     # make a copy of the array, but no longer allow access to it (via `@hide`):
     Sorted Array: @hide Array sort()   # same as `Array::sort()` since `Array` is readonly.
     ok(Sorted Array[Sorted Array count() // 2])
 
 # sorts the array and returns the median.
-get_median_slow(Array[int];): hm[ok: int, uh: string]
+get_median_slow(Array[int];): hm[ok: int, er: string]
     if Array count() == 0
-        return uh("no elements in array, can't get median.")
+        return er("no elements in array, can't get median.")
     Array sort()    # same as `Array;;sort()` since `Array` is writable.
     ok(Array[Array count() // 2])
 ```
@@ -3042,8 +3042,8 @@ patterns(): i32
 patterns(): Chaos: f32      # equivalent to `patterns(): {Chaos: f32}`
 
 I32: patterns()             # calls `patterns(): i32` overload
-My_value: patterns() I32     # same, but defining `My_value` via the `i32` return value.
-Namespace I32: patterns()   # same, defining `Namespace I32` via the `i32`.
+My_value: patterns() I32    # same, but defining `My_value` via the `i32` return value.
+@Namespace I32: patterns()  # same, defining `@Namespace I32` via the `i32`.
 I32 as Q: patterns()        # same, defining `Q` via the `i32`.
 
 F32: patterns()             # COMPILE ERROR: no overload for `patterns(): f32`
@@ -3598,7 +3598,7 @@ example_class: parent_class
     # TODO: we probably can infer the type as well, e.g., `;;renew(My X.)`
 
     # create a different constructor.  constructors use the class reference `i` and must
-    # return either an `i` or a `hm[ok: i, uh]` for any error type `uh`.
+    # return either an `i` or a `hm[ok: i, er]` for any error type `er`.
     # this constructor returns `i`:
     i(K: int): i(X: K * 1000)
 
@@ -3663,7 +3663,7 @@ a few methods, but don't use `:` since we're no longer declaring the class.
 
 ```
 # static function that constructs a type or errors out
-example_class(Z: dbl): hm[ok: example_class, uh: str]
+example_class(Z: dbl): hm[ok: example_class, er: str]
     X: Z round() int() assert(Uh: "Need `round(Z)` representable as an `int`.")
     example_class(X)
 
@@ -3708,7 +3708,7 @@ E.g., instead of `My_date: date_class from_iso_string("2020-05-04")`, just use
 
 ## destructors
 
-The `;;renew(Args...): null` (or `: hm[ok: me, uh: ...]`) constructors
+The `;;renew(Args...): null` (or `: hm[ok: me, er: ...]`) constructors
 are technically resetters.  If you have a custom destructor, i.e., code
 that needs to run when your class goes out of scope, you shouldn't define
 `;;renew` but instead `;;new(Args...): null` and `;;descope(): null`.
@@ -3801,9 +3801,9 @@ instance function; calling one calls the other.
 
 Class constructors can be defined in two ways, either as a method or as a class function.
 Class *method* constructors are defined with the function signature (a) `;;renew(Args...): null`
-or (b) `;;renew(Args...): hm[ok: null, uh: ...]`, and these methods also allow you to renew an
+or (b) `;;renew(Args...): hm[ok: null, er: ...]`, and these methods also allow you to renew an
 existing class instance as long as the variable is writable.  Class *function* constructors
-are defined like (c) `i(Args...): me` or (d) `i(Args...): hm[ok: me, uh: ...]`.  In both
+are defined like (c) `i(Args...): me` or (d) `i(Args...): hm[ok: me, er: ...]`.  In both
 (a) and (c) cases, you can use them like `MyVar: myClass(Args...)`, and for (b) and (d)
 you use them like `MyVar: myClass(Args...) assert()`.
 
@@ -4300,7 +4300,7 @@ you can define multiple methods like this as long as they are distinguishable ov
 (Note that arguments to the passed-in function can distinguish overloads, so
 `;;[fn(Thing_to_modify;): ~t]: t` and `;;[fn(Other_thing;): ~t]: t` are distinguishable.)
 With containers, values are keyed by some ID, so we do `;;[Id, fn(Value;): ~t]: t`
-(or `hm[ok: t, uh]` as the return type in case of errors).  But if you have a class like a mutex
+(or `hm[ok: t, er]` as the return type in case of errors).  But if you have a class like a mutex
 or a guard, where there is no ID needed to access the underlying data, you simply use e.g.
 `Mutex[(Data;): Data some_method()]`.
 
@@ -4465,7 +4465,7 @@ that is non-abstract.
 
 Note that we can overload generic types (e.g., `array[int]` and `array[Count: 3, int]`),
 which is especially helpful for creating your own `hm` result class based on the general
-type `hm[uh, ok]`, like `Namespace uh: one_of[Oops, My_bad], hm[of]: hm[ok: of, Namespace uh]`.
+type `hm[er, ok]`, like `@Namespace er: one_of[Oops, My_bad], hm[of]: hm[ok: of, @Namespace er]`.
 Here are some examples:
 
 ```
@@ -4624,12 +4624,12 @@ All classes have a few compiler-provided methods which cannot be overridden.
 * `::map(fn(Me): ~t): t` is similar to `..map(fn(Me.): ~t): t`,
     but this method keeps `Me` constant (readonly).  You can overload as well.
 * `i(...): me` class constructors for any `;;renew(...): null` methods.
-* `i(...): hm[ok: me, uh]` class or error constructors for any methods defined as
-    `;;renew(...): hm[ok: i, uh]`
+* `i(...): hm[ok: me, er]` class or error constructors for any methods defined as
+    `;;renew(...): hm[ok: i, er]`
 * `;;renew(...): null` for any `i(...): me` class constructors.
     This allows any writable variable to reset without doing `X = x(...)`,
     which may be painful for long type names `x`, and instead do `X renew(...)`.
-* `;;renew(...): hm[uh]` for any `i(...): hm[ok: me, uh]` construct-or-error class functions
+* `;;renew(...): hm[er]` for any `i(...): hm[ok: me, er]` construct-or-error class functions
     This allows any writable variable to reset without doing `X = x(...) assert()`,
     which may be painful for long type names `x`, and instead do `X renew(...) assert()`.
 * `Xyz;: (xyz;:)` gives a reference to the class instance, where `xyz` is the actual
@@ -5051,22 +5051,22 @@ TODO: make it possible to mock out file system access in unit tests.
 ## hm
 
 oh-lang borrows from Rust the idea that errors shouldn't be thrown, they should be
-returned and handled explicitly.  We use the notation `hm[ok, uh]` to indicate
-a generic return type that might be `ok` or it might be an error (`uh`).
+returned and handled explicitly.  We use the notation `hm[ok, er]` to indicate
+a generic return type that might be `ok` or it might be an error (`er`).
 In practice, you'll often specify the generic arguments like this:
-`hm[ok: int, uh: string]` for a result that might be ok (as an integer) or it might
+`hm[ok: int, er: string]` for a result that might be ok (as an integer) or it might
 be an error string.
 
 To make it easy to handle errors being returned from other functions, oh-lang uses
 the `assert` method on a result class.  E.g., `Ok: My_hm assert()` which will convert
-the `My_hm` result into the `ok` value or it will return the `uh` error in `My_hm` from
+the `My_hm` result into the `ok` value or it will return the `er` error in `My_hm` from
 the current function block, e.g., `Ok: what My_hm { Ok: {Ok}, Uh: {return Uh}}`.
 It is something of a macro like `?` in Rust.  Note that `assert` doesn't panic.
 There are a few helpful overloads for the `assert()` method, including changing the
-error type `uh` by including it, e.g., `My_hm assert(Uh: new_uh_type("Bad"))`.
+error type `er` by including it, e.g., `My_hm assert(Uh: new_uh_type("Bad"))`.
 
 Note that we can automatically convert a result type into a nullable version
-of the `ok` type, e.g., `hm[ok: string, uh: error_code]` can be converted into
+of the `ok` type, e.g., `hm[ok: string, er: error_code]` can be converted into
 `string?` without issue, although as usual nulls must be made explicit with `?`.
 E.g., `my_function(String_argument?: My_hm)` to pass in `My_hm` if it's ok or null if not,
 and `String?: My_hm` to grab it as a local variable.  This of course only works
@@ -5074,10 +5074,10 @@ if `ok` is not already nullable, otherwise it is a compile error.
 
 TODO: use an oh-lang version.
 See [the hm definition](https://github.com/hm-lang/core/blob/main/core/hm.hm)
-for methods built on top of the `one_of[ok, uh]` type.
+for methods built on top of the `one_of[ok, er]` type.
 
 ```
-Result: if X { ok(3) } else { uh("oh no") }
+Result: if X { ok(3) } else { er("oh no") }
 if Result is_ok()
     print("ok")
 
@@ -5163,12 +5163,12 @@ Note that `assert` logic is always run, even in non-debug code.  To only check s
 in the debug binary, use `debug assert`, which has the same signature as `assert`.  Using
 `debug assert` is not recommended, except to enforce the caller contract of private/protected
 methods.  For public methods, `assert` should always be used to check arguments.  Note also
-that `assert` will return the correct uh subclass for the module that it is in;
-`debug assert` will return a `debug uh` to help indicate that it is not a production error.
+that `assert` will return the correct `er` subclass for the module that it is in;
+`debug assert` will return a `debug er` to help indicate that it is not a production error.
 
 ## automatically converting errors to null
 
-If a function returns a `hm` type, e.g., `my_function(...): hm[ok, uh]`,
+If a function returns a `hm` type, e.g., `my_function(...): hm[ok, er]`,
 then we can automatically convert its return value into a `one_of[ok, null]`, i.e.,
 a nullable version of the `ok` type.  This is helpful for things like type casting;
 instead of `My_int: what int(My_dbl) {Ok. {Ok}, Uh: {-1}}` you can do
@@ -5176,7 +5176,7 @@ instead of `My_int: what int(My_dbl) {Ok. {Ok}, Uh: {-1}}` you can do
 doesn't use nulls:  `int(My_dbl) map((Uh): -1)`.
 
 TODO: should this be valid if `ok` is already a nullable type?  e.g.,
-`my_function(): hm[ok: one_of[int, null], uh: str]`.
+`my_function(): hm[ok: one_of[int, null], er: str]`.
 we probably should compile-error-out on casting to `Int?: my_function()` since
 it's not clear whether `Int` is null due to an error or due to the return value.
 
@@ -5192,14 +5192,14 @@ This "conversion" happens only conceptually; constructing an array does construc
 a `lot` first and then convert.
 
 ```
-# TODO: should this be `container uh` instead of `Container uh`?
+# TODO: should this be `container er` instead of `Container er`?
 #       may depend on how we handle static stuff.
-Container uh: one_of
+Container er: one_of
 [   Out_of_memory
     # etc.
 ]
 
-hm[of]: hm[ok: of, Container uh]
+hm[of]: hm[ok: of, Container er]
 
 # TODO: rename `non_null` to `present` or `not_null`.  definitely can't mirror `un_null`
 container[at, of: non_null]: []
@@ -5296,11 +5296,11 @@ so that we can pop or insert into the beginning at O(1).  We might reserve
 `stack` for a contiguous list that grows in one direction only.
 
 ```
-Array uh: one_of
+Array er: one_of
 [   Out_of_memory
     # etc...
 ]
-hm[of]: hm[ok: of, Array uh]
+hm[of]: hm[ok: of, Array er]
 
 # some relevant pieces of the class definition
 # Note that `container[id, value]` must have a non-null `value` type,
@@ -5376,7 +5376,7 @@ array[of]: container[id: index, value: non_null[of]]
     # getter, which returns a Null if index is out of bounds of the array:
     ::[Index, fn(Of?): ~u]: u
 
-    # getter, which never returns Null, but will return an `uh` if the index is out of bounds of the array:
+    # getter, which never returns Null, but will return an `er` if the index is out of bounds of the array:
     ::[Index, fn(Of): ~u]: hm u
 
     # Note: You can use the `;:` const template for function arguments.
@@ -5563,12 +5563,12 @@ change places inside the lot and/or collide with an existing ID.
 Some relevant pieces of the class definition:
 
 ```
-uh: one_of
+er: one_of
 [   Out_of_memory
     Missing_id
     # etc...
 ]
-hm[of]: hm[ok: of, uh]
+hm[of]: hm[ok: of, er]
 
 lot[of, at: hashable]: container[of, at]
 {   # Returns Null if `At` is not in the lot.
@@ -5620,14 +5620,14 @@ lot[of, at: hashable]: container[of, at]
     # the ID will be deleted from the lot.  conversely, if the value was Null, but
     # the passed-in function turns it into something non-null, the ID/value will be added
     # to the lot.
-    ;;[At, fn(Of?;): ~t]: hm[ok: t, uh: Out_of_memory]
+    ;;[At, fn(Of?;): ~t]: hm[ok: t, er: Out_of_memory]
 
     # getter and modifier in one definition, with the `;:` "template mutability" operator:
     # will return an error for the const lot (`My:`) if `At` is not in the lot.
     ;:[At, fn(Of;:): ~t]: hm[t]
 
     # nullable getter/modifier in one definition, with the `;:` template mutability operator:
-    ;:[At, fn(Of?;:): ~t]: hm[ok: t, uh: Out_of_memory]
+    ;:[At, fn(Of?;:): ~t]: hm[ok: t, er: Out_of_memory]
 }
 ```
 
@@ -5723,11 +5723,11 @@ fast, i.e., O(1).  Like with container IDs, the set's element type must satisfy 
 You can elide `set` for default named arguments like this: `Set[element_type];` (or `:` or `.`).
 
 ```
-uh: one_of
+er: one_of
 [   Out_of_memory
     # etc...
 ]
-hm[of]: hm[ok: of, uh]
+hm[of]: hm[ok: of, er]
 
 set[of: hashable]: container[id: of, value: true]
 {   # Returns `True` iff `Of` is in the set, otherwise Null.
@@ -6594,7 +6594,7 @@ avoid even acknowledging that your function returns a future, since changing
 an inner function to return a future would then require changing all nested
 functions' signatures to return futures.  Instead, functions return the
 value that they will receive after any futures are completed (and we recommend
-a timeout `uh` being present for a result error).  If the caller wants to
+a timeout `er` being present for a result error).  If the caller wants to
 treat the function as a future, i.e., to run many such futures in parallel,
 then they ask for it as a future by calling a function `f()` via `f() Um`, which
 returns the `um[of]` type, where `of` is the normal function's return type.
