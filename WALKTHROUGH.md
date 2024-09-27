@@ -4296,31 +4296,8 @@ To_string: string = Some_example to()
 # but you can't implicitly ask for the type.
 Unspecified: Some_example to()     # COMPILER ERROR, specify a type for `Unspecified`
 ```
-
-## modifier pattern
-
-In addition to getters/swappers (`::x(): int` and `;;x(X;. int): null`), another
-standard pattern is modifying some internal data on the class.  Instead of recommending
-a word like `modify`, we prefer using `;;[fn(Thing_to_modify;): ~t]: t` as
-the method signature.  If there are multiple things you could modify in a class,
-you can define multiple methods like this as long as they are distinguishable overloads.
-(Note that arguments to the passed-in function can distinguish overloads, so
-`;;[fn(Thing_to_modify;): ~t]: t` and `;;[fn(Other_thing;): ~t]: t` are distinguishable.)
-With containers, values are keyed by some ID, so we do `;;[Id, fn(Value;): ~t]: t`
-(or `hm[ok: t, er]` as the return type in case of errors).  But if you have a class like a mutex
-or a guard, where there is no ID needed to access the underlying data, you simply use e.g.
-`Mutex[(Data;): Data some_method()]`.
-
-TODO: can we distinguish `Mutex[(Data;): Data some_method()]` from `Mutex[data]` as a
-default-named variable declaration?  generic specifications can specify functions internally.
-(e.g., for a generic declaration `[fn(Data;): whatever_type]`.)
-maybe we require `Mutex[data]:` for the declaration.  if not, we need to stop allowing
-access to a container via `[]`; we'd need `Array at(3)` or `Array index(3)`.
-i think we can distinguish based on whether `Mutex` is in scope or not;
-it'd be hard to give up `Array[3]` for simplicity/convenience/conciseness, etc.
-
-This is consistent with brackets `[]` being associated with container classes,
-and giving access to the underlying data.
+it'd be hard to give up `Array[3]` for simplicity/convenience/conciseness, etc,
+i don't prefer `Array at(3)` or `Array index(3)`.
 
 ## generic/template classes
 
@@ -4365,6 +4342,19 @@ Class_instance: generic_class(Id: 5, Value: "hello")
 # creating an instance with template/generic types specified:
 Other_instance: generic_class[id: dbl, value: string](Id: 3, Value: "4")
 ```
+
+### default-named generics
+
+If you have a generic class like `my_generic[type1, type2]`, you can use them as a
+function argument with the shorthand `My_generic[type1, type2]`.
+
+TODO: find where else we talk about this.
+TODO: can we distinguish between an expression like `Generic[3]` and `Generic[Count]`
+as a default-named variable declaration?  i guess it depends on whether we can
+verify if it's a declaration or not;  we could require `Generic[3]:` for a declaration
+e.g., of an array of 3 elements, and `Generic[3]` as an expression might be something
+like accessing the fourth element in the array.  we should be able to distinguish
+based on whether `Generic` is in scope or not.
 
 ### generic class type mutability
 
@@ -4529,8 +4519,8 @@ An_instance: a_class[dbl, N: 3]
 
 Similar to default-named arguments in functions, there are restrictions.
 You are not able to create multiple default-named types in your generic
-signature, e.g., `my_generic[A of, B of]`, unless we use `First` and
-`Second` namespaces, e.g., `my_generic[First of, Second of]`.  These
+signature, e.g., `my_generic[@A of, @B of]`, unless we use `@First` and
+`@Second` namespaces, e.g., `my_generic[@First of, @Second of]`.  These
 should only be used in cases where order intuitively matters.
 
 ### generic overloads must use the original class or a descendant
@@ -4555,6 +4545,10 @@ some_class[of]: child_class[of]
 # this is NOT OK:
 some_class[t, u, v]: [ ...some totally different class... ]
 ```
+
+Note that we probably can support a completely specified generic class,
+e.g., `some_class: some_class[my_default_type]`; we can still distinguish
+between the two usages of `some_class[specified_type]` and `some_class`.
 
 ### type tuples
 
