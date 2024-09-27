@@ -2035,9 +2035,43 @@ Nested; (My_ref: My_value1)
 Nested = (My_ref: My_value2)
 ```
 
+TODO: this logic also seems ok: `My_ref: (Int) = My_referent`.  maybe we allow
+mutable refs via `Mutable_ref; (Int:;)` and readonly refs via `Readonly_ref: (Int:;)`.
+mutable refs can be rewritten via `(Mutable_ref) = New_referent` but readonly refs can't.
+by default, `(My_ref: int) = My_value` should be a readonly ref.
+
 See also [destructuring](#destructuring).
 
-### refer function
+#### reference lifetimes
+
+References are not allowed to escape the block in which their referent is defined.
+For example, this is illegal:
+
+```
+Original_referent: int = 3
+My_reference: (Int) = Original_referent
+{   Nested_referent: int
+    # COMPILE ERROR: `Nested_referent` doesn't live as long as `My_reference`
+    (My_reference) = Nested_referent
+}
+```
+
+However, since function arguments can be references (e.g., if they are defined with
+`:` or `;`), references that use these function arguments can escape the function block.
+
+```
+fifth_element(Array[int];): (Int;)
+    # this is OK because `Array` is a mutable reference
+    # to an array that already exists outside of this scope.
+    (Array[4];)
+
+My_array; array[int](1, 2, 3, 4, 5, 6)
+(Fifth;) = fifth_element(My_array;)
+Fifth += 100
+My_array == [1, 2, 3, 4, 105, 6]    # should be true
+```
+
+#### refer function
 
 You can create a reference via getters and setters using the `refer` function, which
 has the following signature: `refer(~R;, @Getter fn(R): t, @Setter fn(R;, T.): null): (T;)`.
