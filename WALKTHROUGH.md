@@ -1086,6 +1086,20 @@ use e.g. `hm[int]` to return an integer or an error of type `my_class_uh`.  Shad
 invalid in oh-lang, but overloads are valid.  Note however that we disallow redefining
 an overload, as that would be the equivalent of shadowing.
 
+## nullable types
+
+TODO: probably want a function like `extract(~type): other_type` which will extract
+the element of `type`, e.g., `array[int]` becomes `int`, `one_of[str, null]` becomes `str`,
+and `one_of[x, y, null]` becomes `one_of[x, y]`, and `hm[ok: type1, uh: type2]` becomes `type1`.
+
+```
+# TODO: check notation: `non_null(~t): if nullable(t) {un_null(t)} else t`
+# TODO: find a good way to infer types, e.g., like this (or maybe `@infer y` instead of `~y`):
+# e.g., `non_null[of]: if of == nullable(~y) {y} else {of}`.
+# or maybe `if of == one_of[~y, null] {y} else {of}`.
+# or maybe `if of == one_of[...y, null] {y} else {of}`.
+```
+
 # operators and precedence
 
 Almost all operations should have result-like syntax.  e.g., `A * B` can overflow (or run out of memory for `int`).
@@ -5152,13 +5166,14 @@ If a function returns a `hm` type, e.g., `my_function(...): hm[ok, er]`,
 then we can automatically convert its return value into a `one_of[ok, null]`, i.e.,
 a nullable version of the `ok` type.  This is helpful for things like type casting;
 instead of `My_int: what int(My_dbl) {Ok. {Ok}, Uh: {-1}}` you can do
-`My_int: int(My_dbl) ?? -1`.  Although, there is another less-verbose option that
+`My_int: int(My_dbl) ?? -1`.  Although, there is another option that
 doesn't use nulls:  `int(My_dbl) map((Uh): -1)`.
 
 TODO: should this be valid if `ok` is already a nullable type?  e.g.,
 `my_function(): hm[ok: one_of[int, null], er: str]`.
 we probably should compile-error-out on casting to `Int?: my_function()` since
 it's not clear whether `Int` is null due to an error or due to the return value.
+maybe we allow flattening here anyway.
 
 # standard container classes (and helpers)
 
@@ -5172,14 +5187,12 @@ This "conversion" happens only conceptually; constructing an array does construc
 a `lot` first and then convert.
 
 ```
-# TODO: should this be `container er` instead of `Container er`?
-#       may depend on how we handle static stuff.
-Container er: one_of
+er: one_of
 [   Out_of_memory
     # etc.
 ]
 
-hm[of]: hm[ok: of, Container er]
+hm[of]: hm[ok: of, er]
 
 # TODO: rename `non_null` to `present` or `not_null`.  definitely can't mirror `un_null`
 container[at, of: non_null]: []
@@ -5283,15 +5296,11 @@ Array er: one_of
 hm[of]: hm[ok: of, Array er]
 
 # some relevant pieces of the class definition
-# Note that `container[id, value]` must have a non-null `value` type,
-# but `array` can have nullable entries if desired, so convert to `non_null`
-# if necessary to extend `container`.
-# TODO: check notation: `non_null(~t): if nullable(t) {un_null(t)} else t`
-# TODO: find a good way to infer types, e.g., like this (or maybe `@infer y` instead of `~y`):
-# e.g., `non_null[of]: if of == nullable(~y) {y} else {of}`.
-# or maybe `if of == one_of[~y, null] {y} else {of}`.
-# or maybe `if of == one_of[...y, null] {y} else {of}`.
-array[of]: container[id: index, value: non_null[of]]
+# note that `of` cannot be nullable because containers must have non-null values to count,
+# and we don't want to keep track of all the null values in the array to subtract from
+# the highest array index to get the non-null count.
+# TODO: we could support a nullable array but we'd need extra book keeping.
+array[of]: container[id: index, value: of]
 {   # TODO: a lot of these methods need to return `hm[of]`.
     # cast to bool, `::!!(): bool` also works, notice the `!!` before the parentheses.
     !!(Me): bool
