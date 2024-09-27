@@ -5090,43 +5090,22 @@ Result is((Uh): print("Uh: ", Uh))
 Ok: Result or_panic("for sure")
 ```
 
-We also allow this syntactic sugar for `is(fn(Ok): void): bool`:
-
-```
-Result is Ok:
-    print("Ok: ", Ok)
-```
-
-TODO: it might be nice to support this syntax for a bunch of things where we have
-`:.;some_method(fn(Value): ~t): t`, where we can use `X some_method Value: {...}`.
-However we may need to restrict it to a few keywords because `is Ok` looks like a
-static variable `Ok` on the `is` class (and `some_method Value` looks like
-a static variable `Value` on the `some_method` class).
-maybe restrict it to if `if` is at the start.
+A few keywords, such as `is`, are actually operators, so we can overload
+them and use them in this way.  Notice that we declare an `Ok` variable
+here so we need to use a colon (e.g., `Ok:`).
 
 ```
 if Result is Ok:
     print("Ok: ", Ok)
+```
 
+This is how you might declare similar functionality for your own class.
+
+```
 example_class: [Value: int]
 {   # the standard way to use this method uses syntax sugar:
     #   if Example_class is Large:
     #       print("was large: ${Large}")
-    #
-    # but you can also call this directly:
-    #   (Large)?; Example_class is()
-    #   what Large
-    #       Null
-    #           print("not large")
-    #       Int:
-    #           print("Large: ${Int}")
-    #
-    # the method uses return overloading.
-    :;.is()?: (Large:;.)
-        if My Value > 999
-            return (Large` My Value)
-        return Null
-
     # `If` is probably a wrapper around `Block`.
     :;.is(If[declaring: (Large:;. int), ~t]): t
         if My Value > 999
