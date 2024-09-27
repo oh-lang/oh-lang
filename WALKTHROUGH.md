@@ -2406,7 +2406,6 @@ greet(Say: string, To: string): null
     print("${Say}, ${To}!")
 
 greet(Say: string, To: string, Times: int): null
-    # TODO: maybe `range(Times) each {greet(Say, To)}`?
     range(Times) each @Unused Int:
         greet(Say, To)
 
@@ -2442,7 +2441,6 @@ fibonacci(Times: dbl): int
     Golden_ratio: dbl = (1.0 + \\math sqrt(5)) * 0.5
     Other_ratio: dbl = (1.0 - \\math sqrt(5)) * 0.5
     return round((Golden_ratio^Times - Other_ratio^Times) / \\math sqrt(5))
-# TODO: is this still correct?  we're specifying by name then filtering by type.
 # COMPILE ERROR: function overloads of `fibonacci` must have unique argument names,
 #                not argument types.
 
@@ -3012,6 +3010,9 @@ the shorthand for defining lambdas;
 `(X: int, Y: str) = some_function(Z)` is destructuring, while
 `(X: int, Y: str): some_function(Z)` is defining a lambda.
 TODO: think if there's a better, more-consistent resolution here.
+we could require `{}` (or a block indent) for lambdas, e.g., `(X: int, Y: str): {some_function(Z)}`.
+this would probably be easier to type functions, but i like it for the same reason
+we're allowed to define `X: 5` so `x(): 5` should also work.
 
 You can also use destructuring to specify return types explicitly.
 The notation is `[Field1: type1, Field2; type2] = do_stuff()`.  This can be used
