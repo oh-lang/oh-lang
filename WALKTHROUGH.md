@@ -6379,6 +6379,60 @@ else
     print("only fires if `break` never occurs")
 ```
 
+Here are some examples of iterating over a container while mutating some values.
+
+```
+A_array; array[int] = [1, 2, 3, 4]
+# this is clearly a reference since we have `Int` in parentheses, `(Int;)`:
+A_array each(Index, Int;)
+    Int += Index
+A_array == [1, 3, 5, 7] # should be true
+
+B_array; array[int] = [10, 20, 30]
+B_array each(Int;)
+    Int += 1
+B_array == [11, 21, 31] # should be true
+
+C_array; array[int] = [88, 99, 110]
+Start_referent; int = 77
+(Iterand_value;) = Start_referent
+C_array each Iterand_value  # TODO: do we need `each(Iterand_value)` here??
+    Iterand_value -= 40
+C_array == [48, 59, 70] # should be true
+```
+
+You should be careful not to assume that `;` (or `:`) means a reference
+unless the RHS of the `each` is wrapped in parentheses.
+
+```
+B_array; array[int] = [10, 20, 30]
+# WARNING! this is not the same as the previous `B_array` logic.
+B_array each Int;
+    # NOTE: `Int` is a mutable copy of each value of `B_array` element.
+    Int += 1
+    # TODO: we probably should have a compile error here since
+    #       `Int` is not used to affect anything else and
+    #       `Int;` here is *NOT* a reference to the `C_array` elements.
+    #       e.g., "use (Int;) if you want to modify the elements"
+B_array == [11, 21, 31] # FALSE
+
+C_array; array[int] = [88, 99, 110]
+Iterand_value; 77 
+C_array each Iterand_value
+    # NOTE: `Iterand_value` is a mutable copy of each `C_array` element.
+    Iterand_value -= 40
+C_array == [48, 59, 70] # FALSE
+C_array == [88, 99, 110] # true, unchanged.
+Iterand_value == 70 # true
+```
+
+TODO: there may be some internal inconsistency here.  let's make sure
+the way we define `;;each(...)` makes sense for the non-parentheses
+case and the parentheses case.
+
+TODO: we need to discuss the same for `if Result is (Ok;)`, etc.,
+vs. `if Result is Ok;`.  The latter is a copy, the former is a no-copy reference.
+
 # printing and echoing output
 
 TODO: allow tabbed print output.  instead of searching through each string,
