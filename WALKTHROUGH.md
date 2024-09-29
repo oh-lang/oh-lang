@@ -5420,6 +5420,12 @@ array[of]: container[id: index, value: of]
 }
 ```
 
+TODO: for transpiling to javascript, do we want to use the standard javascript `Array`
+as an internal field or do we want to `@hide` it as the base class for the oh-lang `array`?
+i.e., we create oh-lang methods that are aliases for operations on the JS `Array` class?
+it depends on if we want other JS libraries to take advantage of oh-lang features or if
+we want to make it look as native as possible -- for less indirection.
+
 ### fixed-count arrays
 
 We declare an array with a fixed number of elements using the notation
@@ -5962,14 +5968,17 @@ and write something like:
 ```
 X: if Condition
     do_something()
+elif Other_condition
+    do_something_else()
 else
     calculate_side_effects(...) # ignored for setting X
     Default_value
 
-# now X is either the result of `do_something()` or `Default_value`.
-# note, we can also do this with braces to indicate blocks, e.g..
+# now X is either the result of `do_something()`, `do_something_else()`,
+# or `Default_value`.  note, we can also do this with braces to indicate
+# blocks, and can fit in one line if we have fewer conditions, e.g.,
 
-X: if Condition { do_something() } else { calculate_side_effects(...), Default_value }
+Y: if Condition { do_something() } else { calculate_side_effects(...), Default_value }
 ```
 
 Note that ternary logic short-circuits operations, so that calling the function
@@ -5981,7 +5990,7 @@ TODO: more discussion about how `return` works vs. putting a RHS statement on a 
 Of course you can get two values out of a conditional expression, e.g., via destructuring:
 
 ```
-{X, Y}: if Condition
+[X, Y]: if Condition
     [X: 3, Y: do_something()]
 else
     [X: 1, Y: Default_value]
@@ -5989,7 +5998,7 @@ else
 
 Note that indent matters quite a bit here.  Conditional blocks are supposed to indent
 at +1 from the initial condition (e.g., `if` or `else`), but the +1 is measured from
-the line which starts the conditional (e.g., `{X, Y}` in the previous example).  Indenting
+the line which starts the conditional (e.g., `[X, Y]` in the previous example).  Indenting
 more than this would trigger line continuation logic.  I.e., at +2 or more indent,
 the next line is considered part of the original statement and not a block.  For example:
 
@@ -6003,31 +6012,45 @@ Q?: if Condition What + Indent_twice
 
 Which will give a compiler error since there is no internal block for the `if` statement.
 
+### conditional without else
+
+You can use the result of an `if` expression without an `else`, but the resulting
+variable becomes nullable, and therefore must be defined with `?:` (or `?;`).
+
+```
+greet(): str
+    return "hello, world!"
+
+Result?: if Condition { greet() }
+```
+
+This also happens with `elif`, as long as there is no final `else` statement.
+
 ### then statements
 
 We can rewrite conditionals to accept an additional `then` "argument".  For `if`/`elif`
-statements, the syntax is `if Expression, Then:` to have the compiler guess the `then`'s
-return type, or `elif Expression, Whatever_name: then[whatever_type]` to explicitly provide it
+statements, the syntax is `if Expression |> Then:` to have the compiler guess the `then`'s
+return type, or `elif Expression |> Whatever_name: then[whatever_type]` to explicitly provide it
 and also rename `Then` to `Whatever_name`.  Similarly for `what` statements, e.g.,
-`what Expression, Whatever_name: then[whatever]` or `what Expression, Then:`.  `else`
-statements of course elide the expression as `else Then:` or `else Whatever: then[else_type]`.
+`what Expression |> Whatever_name: then[whatever]` or `what Expression |> Then:`.  `else`
+statements elide the `|>` expression as `else Then:` or `else Whatever: then[else_type]`.
 Note that we use a `:` here because we're declaring an instance of `then`; if we don't use
 `then` logic we don't use `:` for conditionals.  Also note that `then` is a thin wrapper
 around the `block` class (i.e., a reference that removes the `::loop()` method that
 doesn't make sense for a `then`).  If you want to just give the type without renaming,
-you can do `if Whatever, Then[my_if_block_type]:`, etc.
+you can do `if Whatever |> Then[my_if_block_type]:`, etc.
 
 ```
-if Some_condition, Then:
+if Some_condition |> Then:
     # do stuff
-    if Some_other_condition, Named Then:
+    if Some_other_condition |> Named Then:
         if Something_else1
             Then exit()
         if Something_else2
             Named Then exit()
     # do other stuff
 
-Result: what Some_value, Then[str]:
+Result: what Some_value |> Then[str]:
     5
         ...
         if Other_condition
@@ -6035,19 +6058,20 @@ Result: what Some_value, Then[str]:
         ...
     ...
 
-# note that grammatically commas are equivalent to newlines,
-# so you can also write conditions like this:
-if Some_condition
-Then:
-    print("`Then` on a newline is ok but not idiomatic")
-    ...
-
 # if you are running out of space, try using parentheses.
 if
 (       Some Long Condition
     &&  Some Other_fact
     &&  Need_this Too
-), Then:
+) |> Then:
+    print("good")
+    ...
+
+# of you can just use double indents:
+if Some Long Condition
+    &&  Some Other_fact
+    &&  Need_this Too
+    |>  Then:
     print("good")
     ...
 ```
