@@ -996,7 +996,7 @@ scaled8:
             return Negative
         if Scaled_value > u8 max() flt()
             return Too_big
-        scaled8(Scaled_value u8() or_panic())
+        scaled8(Scaled_value u8() ?? panic())
 
     # if there are no representability issues, you can create
     # a direct method to convert to `flt`;
@@ -1109,7 +1109,7 @@ we will use `multiply(~First A, Second A): hm[ok: a, Number_conversion er]` and 
 ```
 number::*(You): me
     Result: multiply(Me, You)
-    Result or_panic()
+    Result ?? panic()
 ```
 Primitive types will do overflow like in other languages without panicking, but you can use, e.g.,
 `multiply(One U32, Another U32)` to return an error if it overflows.
@@ -2613,7 +2613,7 @@ my_overload(Y: str): null
 
 # case 2, present output:
 my_overload(Y: str): [X: int]
-    [X: int(Y) or_panic("should be an integer")]
+    [X: int(Y) ?? panic("should be an integer")]
 
 # case 3, nullable output (not compatible with case 1):
 my_overload(Y: str): [X?: int]
@@ -4454,7 +4454,7 @@ generic[of]: [Value; of]
     # TODO: maybe switch to final as `:;method(): int` and virtual as `:;method(); int`
     ::method(~U): u
         Other_of: of = My Value * (U + 5)
-        U + u(Other_of) or_panic()
+        U + u(Other_of) ?? panic()
 }
 
 Generic; generic[string]
@@ -5136,7 +5136,7 @@ Result is((Ok): print("Ok: ", Ok))
 Result is((Uh): print("Uh: ", Uh))
 
 # or if you're sure it's that thing, or want the program to terminate if not:
-Ok: Result or_panic("for sure")
+Ok: Result ?? panic("for sure")
 ```
 
 A few keywords, such as `is`, are actually operators, so we can overload
@@ -5712,7 +5712,7 @@ insertion_ordered_lot[at, of]: lot[at, of]
     ::each(@Loop fn(At, Of): loop): bool
         Index; My Indexed_lot[0] Next
         while Index != 0
-            [Of, At]: My Indexed_lot[Index] or_panic("broken invariant!")
+            [Of, At]: My Indexed_lot[Index] ?? panic("broken invariant!")
             if @Loop fn(At, Of) == Break
                 return True
             Index = My Indexed_lot[Index] Next
@@ -6338,8 +6338,8 @@ insertion order, but same contents).
 ## for-each loops
 
 TODO: Can we write other conditionals/loops/etc. in terms of `indent/block` to make it easier to compile
-from fewer primitives?  E.g., `while Condition, Do: {... Do exit(3) ...}`, where
-`do` is a thin wrapper over `block`?  or maybe `do, Loop: {... Loop exit(3) ...}`
+from fewer primitives?  E.g., `while Condition |> Do: {... Do exit(3) ...}`, where
+`do` is a thin wrapper over `block`?  or maybe `do |> Loop: {... Loop exit(3) ...}`
 
 oh-lang doesn't have `for` loops but instead uses `each` syntax on an iterator.
 The usual syntax is `Iterator each Iterand;:. {do_something(Iterand)}`.  If your
@@ -6605,17 +6605,17 @@ my_function(X: int, Block[str]): never
     inner_function(Y: int): dbl
         if Y == 123
             Block exit("123")    # early return from `my_function`
-        Y dbl() or_panic()
+        Y dbl() ?? panic()
     range(X) each Y:
         inner_function(Y)
     Block exit("normal exit")
 
 # this definition essentially is syntactical sugar for the one above.
-my_function(X: int), Block[str]:
+my_function(X: int) |> Block[str]:
     inner_function(Y: int): dbl
         if Y == 123
             Block exit("123")    # early return from `my_function`
-        Y dbl() or_panic()
+        Y dbl() ?? panic()
     range(X) each Y:
         inner_function(Y)
     "normal exit"
@@ -6973,10 +6973,11 @@ Tree is((Leaf): print(Leaf))
 
 # narrowing to a `branch` type that is writable.  `Tree` was writable, so `Branch` can be.
 # the nested function only executes if `Tree` is internally of type `branch`:
-Tree is((Branch;):
-    print(Branch Left, " ", Branch Right)
-    # this operation can affect/modify the `Tree` variable.
-    Branch Left some_operation()
+Tree is
+(   (Branch;):
+        print(Branch Left, " ", Branch Right)
+        # this operation can affect/modify the `Tree` variable.
+        Branch Left some_operation()
 )
 
 # you can also use this in a conditional; note we don't wrap in a lambda function
@@ -7032,7 +7033,7 @@ The default name for a `one_of` argument is `One_of`.  E.g.,
 ```
 # this is short for `my_function(One_of: one_of[int, str]): dbl`:
 my_function(One_of[int, str]): dbl
-    dbl(One_of) or_panic()
+    dbl(One_of) ?? panic()
 
 print(my_function(123))      # prints 123.0
 print(my_function("123.4"))  # prints 123.4
