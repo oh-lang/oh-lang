@@ -2074,8 +2074,32 @@ My_array == [1, 2, 3, 4, 105, 6]    # should be true
 #### refer function
 
 You can create a reference via getters and setters using the `refer` function, which
-has the following signature: `refer(~R;, @Getter fn(R): t, @Setter fn(R;, T.): null): (T;)`.
+has the following signature: `refer(~R;, @Getter fn(R): ~t, @Setter fn(R;, T.): null): (T;)`.
 It extends a base reference to `R` to provide a reference to a `t` instance.
+There's also a key-like interface (e.g., for arrays or lots):
+
+```
+# if `At` is passed as a temporary, it should be easily copyable.
+refer(~R, At` ~k, @Getter fn(R, K`): ~t, @Setter fn(R;, K`, T.): null): (T;)`
+```
+
+There are also overloads without setters that return a `(T:)` instead.
+
+When calling `refer`, we want the getters and setters to be known at compile time,
+so that we can elide the reference object creation when possible.
+
+```
+My_array; [1, 2, 3, 4]
+
+# here we can elide `refer` here that is inside the method
+# `array[int];;[Index]: (Int;)`, and call the setter immediately:
+My_array[0] = 0     # My_array == [0, 2, 3, 4]
+
+# here we cannot elide `refer`
+(My_reference;) = My_array[2]
+My_reference += 3   # My_array == [0, 2, 6, 4]
+print(My_reference) # prints `6`
+```
 
 ### default-name arguments in functions
 
@@ -3469,6 +3493,11 @@ to explicitly tell the compiler that we don't want default names to apply,
 which we do using the `@Named` namespace.
 
 ```
+copy(@Named ~Value): value
+    ...
+    value(@Named Value)
+
+# or with declare-ahead:
 copy[value](@Named Value): value
     ...
     value(@Named Value)
@@ -3551,6 +3580,8 @@ You can access the variable name via `@@`.
 
 TODO: internally this creates an overload with a "The_name_value" int argument
 and "The_name_name" string argument.  do we really want to support this?
+functionally this is how we support creating lots like `My_lot: [Whatever: "dude"]`,
+so if it's something the compiler is able to do, it's something users should be able to.
 
 ```
 this_function(~Argument: int): null
