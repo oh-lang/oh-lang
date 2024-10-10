@@ -127,6 +127,13 @@ just `::x(): dbl` and `;;x(Dbl;.): null` for a private variable `X; dbl`.  This 
 of the benefits of using `function_case` for functions/methods and `Variable_case`
 for variables; we can easily distinguish intent without additional verbs.
 
+Because we use `::` for readonly methods and `;;` for writable methods, we can
+easily define "const template" `:;` to define a method that works in either case `:` or `;`.
+This is mostly useful when you can call a few other methods internally that have specific
+`::` and `;;` overloads, since there's usually some distinct logic for readonly vs. writable.
+E.g., `;:my_method(X;: str): I check(X;:)` where `check` has distinct overloads for `::` and `;;`.
+See [const templates](#const-templates) for more details.
+
 oh-lang uses result-passing instead of exception-throwing in order to make it clear
 when errors can occur.  The `hm[ok, er]` class handles this, with `ok` being the
 type of a valid result, and `er` being the type of an error result.  You can specify
@@ -2894,11 +2901,16 @@ appear to relate most closely to a readonly type, we choose to use `:` as readon
 writable references due to the similarity between `:` and `;`; therefore `.` can be the
 odd-one-out corresponding to a non-reference, pass-by-value type.
 
-If you want to define multiple overloads, you can use the template `;:` (or `:;`) declaration
+### const templates
+
+If you want to define multiple overloads, you can use the const template `;:` (or `:;`)
 syntax for writable/readonly references.  There will be some annotation/macros which can be
 used while before compiling, e.g., `@writable`/`@readonly` to determine if the variable is
-writable or not.  Similarly, we can use templates like `:;.` for
-readonly-reference/writable-reference/temporary.
+writable or not.  Similarly, we can use const templates like `:;.` for
+readonly-reference/writable-reference/temporary.  When we have the const template `:;.`,
+use `respectively[a, b, c]` to get type `a`  for `:`, `b` for `;`, and `c` for `.`.
+Similarly for the const template `:;`, `respectively[a, b]` will give `a` for `:` and
+`b` when `;`.
 
 ```
 my_class[of]: [X; of]
@@ -6722,16 +6734,27 @@ while True
 # futures
 
 oh-lang wants to make it very simple to do async code, without additional
-metadata on functions like `async` (JavaScript).  It's also desirable to
-avoid even acknowledging that your function returns a future, since changing
-an inner function to return a future would then require changing all nested
-functions' signatures to return futures.  Instead, functions return the
-value that they will receive after any futures are completed (and we recommend
-a timeout `er` being present for a result error).  If the caller wants to
-treat the function as a future, i.e., to run many such futures in parallel,
-then they ask for it as a future by calling a function `f()` via `f() Um`, which
-returns the `um[of]` type, where `of` is the normal function's return type.
-You can also type the variable explicitly as `um[of]`, e.g., `F: um[of] = f()`.
+metadata on functions like `async` (JavaScript).  You can indicate that
+your function takes a long time to run by returning the `um[of]` type,
+where `of` is the type that the future `um` will resolve to, but callers
+will not be required to acknowledge this.  If you define some overload
+`my_overload(X: str): um[int]`, an overload `my_overload(X: str): int`
+will be defined for you that comes before your async definition, so that
+the default type of `Value` in `Value: my_overload(X: "asdf")` is `int`.
+We generally recommend a timeout `er` being present, however, so for
+convenience, we define `um[of, er]: um[hm[ok: of, er]]`.
+
+The reason we obscure futures in this way is to avoid needing to change any
+nested function's signatures to return futures if an inner function becomes
+a future.  If the caller wants to treat a function as a future, i.e., to run
+many such futures in parallel, then they ask for it explicitly as a future
+by calling a function `f()` via `f() Um`, which returns the `um[of]` type,
+where `of` is the default overload's return type.  You can also type the
+variable explicitly as `um[of]`, e.g., `F: um[of] = f()`.  Note that
+`F: um(f())` is a compile error because casting to a future would still run
+`f()` serially.  You can use `F: um(Immediate: 123)` to create an "immediate
+future"; `F: um(Immediate: g())` similarly will run `g()` serially (it should
+not be expensive) and put its result into the immediate future.
 
 ```
 some_very_long_running_function(Int): string
@@ -6749,8 +6772,8 @@ print("the result is ${My_name} many seconds later")
 # this does it as a future
 print("starting a future, won't make progress unless polled")
 # `Future` here has the type `um[string]`:
-Future: um(some_very_long_running_function(10))
-# Also ok: `Future: um[string](some_very_long_running_function(10))`
+Future: some_very_long_running_function(10) Um
+# Also ok: `Future: um[string] = some_very_long_running_function(10)`
 # TODO: can `~` by itself count as the `auto` keyword?
 # probably also ok: `Future: um[~] = some_very_long_running_function(10)`
 print("this `print` executes right away")
@@ -6778,11 +6801,11 @@ Results_array: decide(Futures_array)
 print(Results_array) # prints `["hello", "world"]`
 
 # here we use sequence building to ensure we're creating futures,
-# i.e., `um {A, B}` has type `{A: um[a], B: um[b]}` and executes `A`/`B` asynchronously.
-Futures_object: um @
-{   Greeting: after(Seconds: 2, Return: "hello")
+# i.e., `um@[A, B]` has type `[A: um[a], B: um[b]]` and executes `A`/`B` asynchronously.
+Futures_object: um@
+[   Greeting: after(Seconds: 2, Return: "hello")
     Noun: after(Seconds: 1, Return: "world")
-}
+]
 print(decide(Futures_object)) # prints `[Greeting: "hello", Noun: "world"]`
 ```
 
@@ -6790,7 +6813,24 @@ Notice that all containers with `um` types for elements will have
 an overload defined for `decide`, which can be used like with the
 `Futures_array` example above.  Similarly all object types with `um`
 fields have a `decide` function that awaits all internal fields that
-are futures before returning.
+are futures before returning.  You can also use `Container decide()`
+instead of `decide(Container)` in case that makes more sense.
+
+We will also include a compile error if something inside a futures
+container is defined without `um`:
+
+```
+# if any field in a container is an `um` class, we expect everyone to be.
+# this is to save developers from accidentally forgetting an `Um`
+Container:
+[   Greeting: after(Seconds: 2, Return: "hello")    # COMPILE ERROR!
+    Noun: after(Seconds: 1, Return: "world") Um     # ok
+]
+```
+
+If you do need to pass in an immediate future as a container element
+(e.g., to simplify the API when calling with different conditions),
+use `um(Immediate: ...)` to make it clear that you want it that way.
 
 # enums and masks
 
