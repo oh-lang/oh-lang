@@ -3465,8 +3465,8 @@ with generic names.
 ### argument type generics
 
 For functions that accept multiple types as input/output, we define template types
-inline, e.g., `copy(Value: ~t): t`, using `~` the first time you see the type in the
-definition (reading left to right).  You can use any unused identifier for the new
+inline, e.g., `copy(Value: ~t): t`, using `~` for where the compiler should infer
+what the type is.  You can use any unused identifier for the new
 type, e.g., `~q` or `~sandwich_type`.
 
 ```
@@ -3520,6 +3520,12 @@ copy(Value: 3)  # returns the integer `3`
 # or explicitly typed like this:
 copy[value: dbl](Value: 3)  # will return `3.0`
 ```
+
+TODO: we should be able to use `function[t: some_constraint](My_value: ~t): ...`.
+Maybe for functions we always annotate where we infer the type, e.g.,
+`~t` happens where we infer, so we don't put it into the generic specification
+at the callsite, e.g., `function[t: int](My_value: 3)`.  Maybe if `~` is used,
+then we don't allow putting it into an explicit generic specification.
 
 If you want default-named arguments with generics, see the next section.
 
@@ -3606,6 +3612,32 @@ generic and different.  `my_function(~My_name: ~another_type)` (COMPILE ERROR)
 is needlessly verbose; if the type should be generic, just rely on what
 is passed in: `my_function(~My_name: my_name)` or `my_function(~My_name) for short.
 
+### generic require
+
+`Require` is a special generic field that allows you to include a function,
+method, or variable only if it meets some compile-time constraints.  It is
+effectively a keyword within a generic specification, so it can't be used
+for other purposes, and the boolean value it takes must be known at compile-time.
+
+```
+# `of is orderable` is true iff `of` extends `orderable`.
+less_than[Require: of is orderable](Left: ~of, Right: of): bool
+    Left < Right
+
+my_class[of, N: count]: all_of
+[   Value: of
+    # TODO: does this conflict with any other usages of generic classes?
+    Second_value[Require: N > 1]: of
+]
+{   # `of is hashable` is true iff `of` extends `hashable`.
+    ::hash[Require: of is hashable](~Builder):
+        Builder hash(My Value)
+        # TODO: is this the best notation for if `Second_value` is compile-time present?
+        #       alternatively use `@if N > 1 {Builder hash(My Second_value)}`
+        #       or something like `Builder hash(@?My Second_value)`
+        Builder hash(?My Second_value)
+}
+```
 
 # classes
 
@@ -6338,6 +6370,13 @@ and other containers of precise types, as well as recursive containers thereof.
 # TODO: maybe something like `my_hashable_class: [...] {...}, assert(my_hashable_class is hashable)`.
 #       even better, maybe the callers should be responsible for checking if a class is
 #       hashable (or whatever).
+#       OR we could do something where we annotate methods, like this:
+#           `my_hashable: [Non_hash_fields...]`
+#           `{   @extend(hashable)`
+#           `    ::hash(~Builder): Builder@{...}`
+#           `}`
+#       this has the benefit of code locality, but only really works if the class
+#       has only one method to implement.
 my_hashable_class: all_of[hashable, [Id: u64, Name; string]]
 {   # we allow a generic hash builder so we can do cryptographically secure hashes
     # or fast hashes in one definition, depending on what is required.
