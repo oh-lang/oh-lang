@@ -195,7 +195,7 @@ memory, these safe functions are a bit more verbose than the unchecked functions
     * while declaring *and defining* something, you can avoid the type if you want the compiler to infer it,
         e.g., `A: some_expression()`
 * when not declaring things, `:` is not used; e.g., `if` statements do not require a trailing `:` like python
-* `()` for argument objects, organization, and function calls
+* `()` for argument objects, organization, and function calls/declarations
     * `(W: str = "hello", X: dbl, Y; dbl, Z. dbl)` to declare an argument object type, `W` is an optional field
         passed by readonly reference, `X` is a readonly reference, `Y` is a writable reference,
         and `Z` is passed by value.  See [argument objects](#argument-objects) for more details.
@@ -203,9 +203,11 @@ memory, these safe functions are a bit more verbose than the unchecked functions
     * `(Some_instance x(), Some_instance Y;, W: "hi", Z. 1.23)` to instantiate an argument object instance
         with `X` and `W` as readonly references, `Y` as mutable reference, and `Z` as a temporary.
     * `"My String Interpolation is $(X, Y: Z)"` to add `(X: *value-of-X*, Y: *value-of-Z*)` to the string.
-    * `A @(x(), Y@)` to call `A x()` then `A Y` with [sequence building](#sequence-building)
+    * `f(A: 3, B: "hi")` to call a function, and `f(A: int, B: str): null` to declare a function.
+    * `A(_ x(), _ Y)` to call `A x()` then `A Y` with [sequence building](#sequence-building)
         and return them in an argument object with fields `X` and `Y`, i.e., `(X: A x(), Y: A Y)`.
-        This allows `X` and `Y` to be references.
+        This allows `X` and `Y` to be references.  This can be useful e.g., when `A` is an expression
+        that you don't want to add a local variable for, e.g., `my_long_computation() (_ x(), _ Y)`.
 * `[]` are for types, containers (including objects, arrays, and lots), and generics
     * `[X: dbl, Y: dbl]` to declare a class with two double-precision fields, `X` and `Y`
     * `[X: 1.2, Y: 3.4]` to instantiate a plain-old-data class with two double-precision fields, `X` and `Y`
@@ -217,15 +219,17 @@ memory, these safe functions are a bit more verbose than the unchecked functions
         where `of` is the generic type.  See [generic/template functions](#generictemplate-functions) for more.
     * `[Greeting: str, Times: int] = destructure_me()` to do destructuring of a return value
         see [destructuring](#destructuring).
-    * `A @[x(), Y@]` to call `A x()` then `A Y` with [sequence building](#sequence-building)
+    * `A[_ x(), _ Y]` to call `A x()` then `A Y` with [sequence building](#sequence-building)
         and return them in an object with fields `X` and `Y`, i.e., `[X: A x(), Y: A Y]`.
         You can also consider them as ordered, e.g.,
-        `Results: A @[x(), Y@], print("${Results[0]}, ${Results[1]})`.
+        `Results: A[_ x(), _ Y], print("${Results[0]}, ${Results[1]})`.
+        TODO: We can technically distinguish `A[_ x()]` (sequence building) from `A[x()]` (array access),
+        but is this confusing from a developer/grammar/syntax?
 * `{}` for blocks and sequence building
     * `{...}` to effectively indent `...`, e.g., `if Condition {do_thing()} else {do_other_thing(), 5}`
         * Note that braces `{}` are *optional* if you actually go to the next line and indent,
             but they are recommended for long blocks.
-    * `A @{x(), Y@}` with [sequence building](#sequence-building), 
+    * `A{_ x(), _ Y}` with [sequence building](#sequence-building), 
         calling `A x()` and `A Y`, returning `A` if it's a temporary otherwise `A Y`
     * `"My String Interpolation is ${missing(), X}"` to add `X` to the string.
         Note that only the last element in the `${}` is added, but `missing()` will still be evaluated.
@@ -3816,18 +3820,17 @@ example_class some_static_impure_function(): int
 example_class;;another_method(Plus_k: int): null
     My X += Plus_k * 1000
 
-# Use `@{`/`@}` instead of `:` here since we're not defining a class,
-# we're doing sequence building.
+# Use `_` inside the block to reference the LHS `example_class` and do sequence building.
 example_class
-@{  # with sequence building, `example_class my_added_class_function(K: int): example_class`
+{   # with sequence building, `example_class my_added_class_function(K: int): example_class`
     # is exactly how you'd define a class function.
-    my_added_class_function(K: int): example_class
+    _ my_added_class_function(K: int): example_class
         example_class(X: K * 1000)
 
     # a method which keeps the instance readonly:
-    ::my_added_method(Y: int): int
+    _::my_added_method(Y: int): int
         My X * 1000 + Y * 100
-@}
+}
 ```
 
 If they are public, you can import these custom methods/functions in other files in two
@@ -4816,93 +4819,122 @@ using setters.  For example, `MyBuilder.setX(123).setY(456).setZ("great").build(
 In oh-lang, this is mostly obviated by named arguments: `my_class(X: 123, Y: 456, Z: "great")`
 could do the same thing.  However, there are still situations where it's useful to chain 
 methods on the same class instance, and oh-lang does not recommend returning a reference
-to the class via the return type `(me)`.  More idiomatically, we use `@{@}` with all the
-method calls inside.  For example, if we were to implement a builder pattern with setters,
-we could combine a bunch of mutations like this:
+to the class via the return type `(me)`.  More idiomatically, we use sequence building
+with all the method calls inside a block.  For example, if we were to implement a builder pattern
+with setters, we could combine a bunch of mutations like this:
 
 ```
 # class definition:
 my_builder: [...]
-{   ;;set(String, Int): null
+{   ;;set(String, Int): null    # no need to return `(me)`
 }
 
-# Note, inside the `@{ @}` we allow mutating methods because `my_builder()` is a temporary.
+# Note, inside the `{}` we allow mutating methods because `my_builder()` is a temporary.
 # The resulting variable will be readonly after this definition + mutation chain,
 # due to being defined with `:`.
 My_builder: my_builder()
-@{  set("Abc", 123)
-    set("Lmn", 456)
-    set("Xyz", 789)
+{   _ set("Abc", 123)
+    _ set("Lmn", 456)
+    _ set("Xyz", 789)
     # etc.
-@}
+}
 
 # You can also do inline, but you should use commas here.
-# Note that this variable can be mutated after this line due to `;`.
-My_builder2; my_builder() @{ set("Def", 987), set("Uvw", 321) @}
+# Note that this variable can be mutated after this line due to being defined with `;`.
+My_builder2; my_builder() {_ set("Def", 987), _ set("Uvw", 321)}
 ```
 
 By default, if the left-hand side of the sequence builder is writable (readonly),
-the methods being called on the right will be the writable (readonly) versions.
-E.g., `my_builder()` is the left-hand side for the sequence builder, and `@{ set... @}`
-is the right; and in this case, `my_builder()` is a temporary which defaults to
-writable.  You can explicitly ask for the readonly (or writable) version of a
-method using `::` (or `;;`) like this, although it will be a compile-error if
-you are trying to write a readonly variable.
+the methods being called on the right will be the writable (readonly) versions
+when using implicit member access (e.g., not explicitly using `::` or `;;`).
+E.g., if `my_builder()` is the left-hand side for the sequence builder, it is a
+temporary which defaults to writable.  You can explicitly ask for the readonly
+(or writable) version of a method using `::` (or `;;`), although it will be a
+compile-error if you are trying to write a readonly variable.
 
 The return value of the sequence builder also depends on the LHS.
-If it is a temporary, the return value will be the temporary after it has been called
+If the LHS is a temporary, the return value will be the temporary after it has been called
 with all the methods in the RHS of the sequence builder.  E.g., from the above example,
 a `my_builder` instance with all the `set` methods called.  Otherwise, if the LHS
 is a reference (either readonly or writable), the return value of the sequence
 builder will depend on the type of parentheses used:
-`@{@}` returns the value of the last statement in `@{@}`,
-`@[@]` creates an object with all the fields built out of the RHS methods, and
-`@(@)` creates an argument object with all the fields built out of the RHS methods.
+`{}` returns the value of the last statement in `{}`,
+`[]` creates an object with all the fields built out of the RHS methods, and
+`()` creates an argument object with all the fields built out of the RHS methods.
 Some examples of the LHS being a reference follow:
 
 ```
 Readonly_array: [0, 100, 20, 30000, 4000]
 Results: Readonly_array
-@[  [2]             # returns 20
-    ::sort()        # returns a sorted copy of the array; `::` is unnecessary
-    ::print()       # prints unsorted array; `::` is unnecessary
+[   _[2]            # returns 20
+    _::sort()       # returns a sorted copy of the array; `::` is unnecessary
+    _::print()      # prints unsorted array; `::` is unnecessary
     # this will throw a compile-error, but we'll discuss results
     # as if this wasn't here.
-    ;;[3]++         # compile error, `Readonly_array` is readonly
-@]
+    ++_;;[3]        # compile error, `Readonly_array` is readonly
+]
 # should print [0, 100, 20, 30000, 4000] without the last statement
 # Results = [Int: 20, Sort: [0, 20, 100, 4000, 30000]]
 
 Writeable_array; [-1, 100, 20, 30000, 4000]
 Result: Writeable_array
-@{  [2]             # returns 20
-    sort()          # in-place sort, i.e., `;;sort()`
-    # TODO: i'm not sure i like this syntax here too much, including `[2]` above.
-    #       if we have some operation like `[2] + [3]` here, the parsed result
-    #       will look like [2, 3] before we get to the `@{ @}` logic.
-    #       should we require `@>` everywhere instead inside of the sequence builder?
-    #       that way we can do `++@>[2]`, etc.  maybe `_` would be better instead;
-    #       `++_[2]` and `_ sort()`.
-    ;;[3]++         # OK, a bit verbose since `;;` is unnecessary
+{   _[2]            # returns 20
+    _ sort()        # in-place sort, i.e., `;;sort()`
+    ++_;;[3]        # OK, a bit verbose since `;;` is unnecessary
     # prints the array after all the above modifications:
-    ::print()       # OK, we probably don't have a `;;print()` but you never know
-    min()
-@}
+    _::print()      # OK, we probably don't have a `;;print()` but you never know
+    _ min()
+}
 # should print [-1, 20, 100, 4001, 30000]
-# Result = -1       # from `min(Writeable_array)`
+# Result = [20, 4001, -1]
+```
+
+### field renaming in sequence builders
+
+You can use field names in sequence builders in order to better organize things.
+This is only useful if the LHS is not a temporary, since a temporary LHS is returned
+as sequence builder's value, or if you are using the variable for something else inside
+the sequence builder.
+
+```
+My_class: [...]
+Results: My_class
+[   Field1: _ my_method()
+    Field2: _ next_method()
+]
+# The above is equivalent to the following:
+Results:
+[   Field1: My_class my_method()
+    Field2: My_class next_method()
+]
+
+# This is a compile error because the LHS of the sequence builder `My_class get_value()`
+# is a temporary, so the fields are not used in the return value.
+# this also would be a compile error for `()` and `{}` sequence builders.
+Results: My_class get_value()
+[   Field1: _ do_something()
+    Field2: _ do_something_else()
+]   # COMPILE ERROR: Field1 is not used anywhere
+
+# this would be ok:
+Results: My_class get_value()
+{   Field1: _ do_something()
+    print(_ do_something_else() * Field1)
+}
 ```
 
 ### nested sequence builders
 
-In fact, `@{@}` acts somewhat like bash sequence builders (which use `{}`).  E.g.,
+There is one exception in oh-lang for shadowing identifiers, and it is for `_`
+inside nested sequence builders.  We don't expect this to be a common practice.
 
 ```
 # Example method sequence builder:
 My_class
-@[  my_method() @[next_method(), next_method2(), Nested_field@]
-    other_method()
-    Some_field
-@]
+[   _ my_method() [_ next_method(), _ next_method2(), _ Nested_field]
+    _ other_method()
+    _ Some_field
+]
 
 # Is equivalent to this sequence:
 Result: My_class my_method()
@@ -4911,58 +4943,9 @@ Next_method2: Result next_method2()
 Nested_field: Result Nested_field
 Other_method: My_class other_method()
 Some_field: My_class Some_field
-# This is constructed (since it's defined with `@[@]`):
+# This is constructed (since it's defined with `[]`):
 [My_method: [Next_method, Next_method2, Nested_field], Other_method, Some_field]
 ```
-
-TODO: let's reevaluate the utility of this, not sure we'll need this very often at all.
-When two sequence builders combine, e.g., `@[A, B@] @[c(), d()@]`, they execute in a deterministic
-order, e.g., `A c(), A d(), B c(), B d()`.  In this case, when the LHS is itself a sequence,
-it acts like a temporary, so that the return value is an object with fields `A` and `B`,
-i.e., `[A, B]`, where `A` and `B` have already had the methods `c()` and `d()` called on them.
-
-You can use field names in sequence builders in order to better organize things.
-This is only useful if the LHS is not a temporary, since a temporary LHS is returned
-as sequence builder's value.
-
-```
-My_class: [...]
-# My_class is not a temporary, so we can include field names here:
-Results: My_class
-@[  Field1: my_method()
-    Field2: next_method()
-@]
-# The above is equivalent to the following:
-Results:
-[   Field1: My_class my_method()
-    Field2: My_class next_method()
-]
-
-# This is a compile error because the LHS of the sequence builder
-# is a temporary, so the fields are not used in the return value.
-Results: My_class get_value()
-@[  Field1: do_something()
-    Field2: do_something_else()
-@]  # COMPILE ERROR: Field1 is not used anywhere
-# similarly for @()
-
-# this is also a compile error because we don't return fields in a `@{}`,
-# we just return the last statement executed.
-# TODO: we probably can allow this as it's just defining something in the indented block.
-#       we can compile-error if the variable isn't used (e.g., no unused variables).
-Other_results: My_class get_value()
-@{  Field1: do_something()
-    Field2: do_something_else()
-@}
-```
-
-### conditionals in sequence builders
-
-TODO: talk about conditionals in sequence building.
-E.g., `@[ my_method(), if Value {some_method()} else {other_method()} @]`
-Everything is scoped to the LHS, however, so `if Value` would be `if Lhs Value`.
-Maybe we try `if Lhs Value` first and then if `Value` isn't on `Lhs`, we'll look
-for a global `Value`.
 
 # aliases
 
@@ -6846,13 +6829,25 @@ Futures_array append(after(Seconds: 1, Return: "world"))
 Results_array: decide(Futures_array)
 print(Results_array) # prints `["hello", "world"]`
 
-# here we use sequence building to ensure we're creating futures,
-# i.e., `um@[A, B@]` has type `[A: um[a], B: um[b]]` and executes `A`/`B` asynchronously.
-Futures_object: um
-@[  Greeting: after(Seconds: 2, Return: "hello")
-    Noun: after(Seconds: 1, Return: "world")
-@]
+# here we put them all in at once.  notice you can use
+# `Field: um[type] = fn()` or `Field: fn() Um`.
+Futures_object:
+[   Greeting: after(Seconds: 2, Return: "hello") Um
+    Noun: um[str] = after(Seconds: 1, Return: "world")
+]
 print(decide(Futures_object)) # prints `[Greeting: "hello", Noun: "world"]`
+
+# if your field types are already futures, you don't need to be
+# explicit with `Um`.
+future_type: [Greeting: um[str], Noun: um[str]]
+# TODO: do we need to be explicit with `Futures: future_type(Greeting: ..., Noun: ...)`?
+Futures: future_type =
+[   Greeting: after(Seconds: 2, Return: "hi")
+    Noun: after(Seconds: 1, Return: "you")
+]
+# this whole statement should take ~2s and not ~3s; the two fields are
+# initialized in parallel.
+Futures decide() print()    # prints `[Greeting: "hi", Noun: "you"]`
 ```
 
 Notice that all containers with `um` types for elements will have
@@ -6866,9 +6861,9 @@ We will also include a compile error if something inside a futures
 container is defined without `um`:
 
 ```
-# if any field in a container is an `um` class, we expect everyone to be.
+# if any field in an object/container is an `um` class, we expect everyone to be.
 # this is to save developers from accidentally forgetting an `Um`
-Container:
+Object_or_container:
 [   Greeting: after(Seconds: 2, Return: "hello")    # COMPILE ERROR!
     Noun: after(Seconds: 1, Return: "world") Um     # ok
 ]
