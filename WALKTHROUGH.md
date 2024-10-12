@@ -6829,8 +6829,8 @@ Futures_array append(after(Seconds: 1, Return: "world"))
 Results_array: decide(Futures_array)
 print(Results_array) # prints `["hello", "world"]`
 
-# here we put them all in at once.  notice you can use
-# `Field: um[type] = fn()` or `Field: fn() Um`.
+# here we put them all in at once.
+# notice you can use `Field: um[type] = fn()` or `Field: fn() Um`.
 Futures_object:
 [   Greeting: after(Seconds: 2, Return: "hello") Um
     Noun: um[str] = after(Seconds: 1, Return: "world")
@@ -6839,12 +6839,19 @@ print(decide(Futures_object)) # prints `[Greeting: "hello", Noun: "world"]`
 
 # if your field types are already futures, you don't need to be
 # explicit with `Um`.
+# TODO: we should have a nice way to nest types, e.g.,
+#       `um |> [X: str, Y: int]` should define `[X: um[str], Y: um[int]]`.
+#       or maybe `apply[um, over: [X: str, Y: int]]`
+#       or `nest[um, within: [X: str, Y: int]]`
+#       or `[X: str, Y: int] nest(um)`
 future_type: [Greeting: um[str], Noun: um[str]]
-# TODO: do we need to be explicit with `Futures: future_type(Greeting: ..., Noun: ...)`?
-Futures: future_type =
-[   Greeting: after(Seconds: 2, Return: "hi")
+# note that we need to explicitly type this via `the_type(Args...)`
+# so that the compiler knows that the arguments are futures and should
+# receive the `um` overload.
+Futures: future_type
+(   Greeting: after(Seconds: 2, Return: "hi")
     Noun: after(Seconds: 1, Return: "you")
-]
+)
 # this whole statement should take ~2s and not ~3s; the two fields are
 # initialized in parallel.
 Futures decide() print()    # prints `[Greeting: "hi", Noun: "you"]`
