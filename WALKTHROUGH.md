@@ -111,16 +111,16 @@ including in methods that only declare one of them in the function arguments.
 We recommend using `My` for field access (e.g., `My X`) as well as getters/setters
 `My x()` or `My x(New_x_value)`, `Me` for returning a copy/clone (e.g., `return Me`),
 and `I` for methods that start with a verb, e.g., `I draw()`.
+
+While it would be even more concise to omit `Me/My/I`, we want to support
+overloading keywords such as `pass` or `break`, and to make it clear that
+the overload is requested we need the `Me/My/I` context.
 TODO: can we get rid of the need for `My`/`Me`/`I` and just use `::my_method` or `;;other_method`
 inside function calls?  that way we wouldn't need to prefix `My X` for instance variables either.
-parent variables would still need to be referenced via `Parent X`.
-every once in a while i think about something that would break if we do this,
-and i forget to write it down.  one of these days i'll put it here.
-ACTUALLY -- i think it's this: being able to overload methods that are keywords, like
-`return` or `pass` or `break`.  it's obvious from the context if you want your method,
-if it needs to be prefixed with `I/Me/My`.  it's not obvious if it's inferred.
+parent variables would still need to be referenced via `Parent X` or `::X`/`;;X`.
 TODO: should we go all in on underscores like `_my x(_new_x_value)`, but then
-instead of `_i` `_me` or `_my` we use `_` for `this`/`self`?  e.g., `_ x(_new_x_value)`.
+instead of `_i` `_me` or `_my` we use `::` or `;;` to get methods/vars?
+e.g., `::x(_new_x_value)`.
 
 Class getters/setters do not use `::get_x(): dbl` or `;;set_x(Dbl): null`, but rather
 just `::x(): dbl` and `;;x(Dbl;.): null` for a private variable `X; dbl`.  This is one
@@ -5008,6 +5008,8 @@ to the current directory, e.g., `\/../subdirectory_in_parent_directory/other/fil
 Note that we don't include the `.oh` extension on the final file, and we allow
 underscores in file and directory names.
 TODO: we can probably alias `.oh` imports into their non-`.oh` version.
+TODO: discuss using `oh("./file_path.oh")` instead.  might be better
+to reserve `\/` and `\\` for something interesting.
 
 For example, suppose we have two files, `vector2.oh` and `main.oh` in the same
 directory.  Each of these is considered a module, and we can use backslashes
@@ -5023,11 +5025,12 @@ vector2: [X: dbl, Y: dbl]
 }
 
 # main.oh
-Vector2_module: \/vector2    # .oh extension must be left off.
-Vector2: Vector2_module vector2(X: 3, Y: 4)
+Vector2_oh: \/vector2   # .oh extension must be left off.
+# alternatively: `Vector2_oh: oh("./vector2.oh")`
+Vector2: Vector2_oh vector2(X: 3, Y: 4)
 print(Vector2)
 # you can also destructure imports like this:
-{vector2}: \/vector2
+[vector2]: \/vector2    # or `[vector2]: oh("./vector2.oh")`
 ```
 
 TODO: discussion on how the formatter will move imports to the bottom
@@ -6841,9 +6844,14 @@ print(decide(Futures_object)) # prints `[Greeting: "hello", Noun: "world"]`
 # explicit with `Um`.
 # TODO: we should have a nice way to nest types, e.g.,
 #       `um |> [X: str, Y: int]` should define `[X: um[str], Y: um[int]]`.
-#       or maybe `apply[um, over: [X: str, Y: int]]`
+#       or maybe `apply[um, over: [X: str, Y: int]]` or `into: [X...]`
 #       or `nest[um, within: [X: str, Y: int]]`
 #       or `[X: str, Y: int] nest(um)`
+#       or `box[um, in: [X: str, Y: int]]`
+#       it'd be nice to have a good antonym for `unbox` or `unnest` or `unapply`
+#       `invoke[of, over]` and `revoke[of, from]` also seem ok, but
+#       `box` and `unbox` seem the most natural apart from `nest` and `drop`.
+#       it's nice that `box`/`unbox` are related words.
 future_type: [Greeting: um[str], Noun: um[str]]
 # note that we need to explicitly type this via `the_type(Args...)`
 # so that the compiler knows that the arguments are futures and should
@@ -7690,6 +7698,24 @@ Min: (min Value_1, Value_2)
 ```
 Not a big fan of this notation, since it would require getting rid of static variables
 (e.g., `min Value_1` looks like a static variable).
+
+### type manipulation
+
+TODO: good ways to do keys and values for an object type (e.g., like TypeScript).
+
+If you have an object type like `[X: int, Y: str]`, we have a few helpful methods
+to manipulate the field types.
+
+```
+# TODO: does this incomplete type even make sense (`um`)??
+# e.g., `nest[um, in: array[int]] == array[um[int]]`
+nest[of, in: container[of: ~value, ~at]]: container[of: of[value], at]
+# TODO: what's the syntax here???
+# e.g., `nest[hm[ok: $of, er], in: [X: int, Y: str]] == [X: hm[ok: int, er], Y: hm[ok: int, er]]`
+# should it be something like `hm[ok: $of, er: ex_er] apply([X: int, Y: str])` ???
+nest[of, in: object[]: [at: object ats()][at: of[object[at]]]
+nest[um, in: [X: int, Y: str]]
+```
 
 # implementation
 
