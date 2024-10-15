@@ -190,8 +190,11 @@ memory, these safe functions are a bit more verbose than the unchecked functions
     (i.e., passed by value), see [pass-by-reference or pass-by-value](#pass-by-reference-or-pass-by-value)
 * use `:` to declare readonly things, `;` to declare writable things.
     * use `A: x` to declare `A` as an instance of type `x`, see [variables](#variables)
-    * use `fn(): x` to declare `fn` as a function returning an instance of type `x`, see [functions](#functions)
+    * use `fn(): x` to declare `fn` as a function returning an instance of type `x`, see [functions](#functions),
+        with any arguments inside `()`.
     * use `a: y` to declare `a` as a constructor that builds instances of type `y`
+    * use `new[]: y` to declare `new` as a function returning a type `y`, with any arguments inside `[]`.
+        TODO: can we distinguish lambdas `$X` and `$x` for being an instance function or a type function?
     * while declaring *and defining* something, you can avoid the type if you want the compiler to infer it,
         e.g., `A: some_expression()`
 * when not declaring things, `:` is not used; e.g., `if` statements do not require a trailing `:` like python
@@ -521,16 +524,12 @@ print(counter())    # 124
 ```
 # defining a function that takes two type constructors as arguments,
 # one of them being named, and returns a type constructor:
-do_something(~x, named_new: ~y): one_of[new[x], new[y]]
+some_constructor[~x, named_new: ~y]: one_of[x, y]
     if random(dbl) < 0.5 {x} else {named_new}
 
-some_type: do_something(int, named_new: dbl) # int or dbl with 50-50 probability
+some_type: some_constructor[int, named_new: dbl] # int or dbl with 50-50 probability
+X: some_type(1234)  # `X` is either `int(1234)` or `dbl(1234)`.
 ```
-
-Note you could also return `new[one_of[x, y]]` in the above example,
-but that subtly changes the return value to a type that can be either `x` or `y`
-and can switch from one to the other.  `one_of[new[x], new[y]]` will be either
-`x` or `y`, but does not allow switching.
 
 ## variable and function names
 
@@ -553,8 +552,6 @@ There are some reserved namespaces with side effects like `@First`, `@Second`,
 which should be used for their side effects.  For example, `@First` and `@Second`
 are reserved for binary operations like `&&` and `*`.  See [namespaces](#namespaces)
 for more details.  Other reserved keywords:
-* `new` for returning a class constructor, e.g., `my_function(): new[one_of[int, dbl]]`
-for returning either an `int` or `dbl` constructor.
 
 There are some reserved variable names, like `I`, `Me`, and `My`, which can only
 be used as a reference to the current class instance, and `You` and `Your` which
@@ -2302,15 +2299,17 @@ print(do_something(u8))  # returns u8(123)
 
 ### returning a type constructor
 
-For returning a class/constructor, we need to use the syntax `new[x]` (or
-`new[any]` if it's any type), because `do_something(): x` returns
-an instance `X` of class `x`.  Since returning an instance is by far the
-most common case, we optimize for that rather than for returning a class.
+We use a different syntax for functions that return types; namely `()` becomes `[]`,
+e.g., `constructor_fn[Args...]: constructor`.  This is because we do not need
+to support functions that return instances *or* constructors, and it becomes clearer
+that we're dealing with a type if we use `[]`.  The alternative would be to use
+`fn(Int): Int` to return an `int` instance and `fn(Int): int` to return the
+`int` constructor, but again we never need to mix and match.
 
 ```
 # it's preferable to return a more specific value here, like
-# `new[one_of[int, dbl, string]]`, but `new[any]` works as well.
-random_class(): new[any]
+# `one_of[int, dbl, string]`, but `any` works as well.
+random_class[]: any
     if random(dbl) < 0.5
         int
     elif random(dbl) < 0.5
@@ -2320,15 +2319,14 @@ random_class(): new[any]
 ```
 
 We can also pass in named types as arguments.  Here is an example
-where we also return a type constructor.  Named types look like
-function arguments but without an argument list (e.g., `class_name: t`
-instead of `fn(Args): t`).
+where we also return a type constructor.  Named types are just
+`type_case` on both left and right sides (e.g., `class_name: t`).
 
 ```
-do_something(~x, named_new: ~y): new[one_of[x, y]]
+random_class[~x, named_new: ~y]: one_of[x, y]
     return if random(dbl) < 0.5 {x} else {named_new}
 
-print(do_something(int, named_new: dbl))  # will print `int` or `dbl` with 50-50 probability
+print(random_class[int, named_new: dbl])  # will print `int` or `dbl` with 50-50 probability
 ```
 
 To return multiple constructors, you can use the [type tuple syntax](#type-tuples).
@@ -4693,7 +4691,7 @@ some_specification: my_generic[...tuple_type, w: int]
 
 # you can even override one of your supplied tuple_type values with your own.
 # make sure the override comes last.
-another_spec[Override of]: my_generic[...tuple_type, w: str, x: Override of]
+another_spec[@Override of]: my_generic[...tuple_type, w: str, x: @Override of]
 
 # Note that even if `tuple_type` completely specifies a generic class
 # `some_generic[x, y, z]: [...]`, we still need to use the spread operator
@@ -4701,25 +4699,21 @@ another_spec[Override of]: my_generic[...tuple_type, w: str, x: Override of]
 a_specification: some_generic[...tuple_type]
 ```
 
-You could theoretically use tuple types to return class constructors from a function.
-This is only really useful if there's some conditions to choose one type over another,
-so we can return constrained types as `[constraint1, ...]` or any type as `[any, ...]`.
-Of course they can be named as well, like `[named_type: constraint, ...]`.
-Here is an example with usage.
+Here is an example of returning a tuple type.
 
 ```
-tuple(Dbl): [number, vector: any]
+tuple[Dbl]: [number, vector: any]
     if abs(Dbl) < 128.0
         [number: flt, vector: {X: flt, Y: flt}]
     else
         [number: dbl, vector: {X: dbl, Y: dbl}]
 
-my_tuples: tuple(random() * 256.0)
+my_tuples: tuple[random() * 256.0]
 My_number; my_tuples number(5.0)
 My_vector; my_tuples vector(X: 3.0, Y: 4.0)
 ```
 
-If you want to return a single constructor, use the [`new[any]` syntax](#returning-a-type-constructor).
+See also [`new[...]: ...` syntax](#returning-a-type-constructor).
 
 
 ### default field names with generics
@@ -7689,62 +7683,38 @@ check(T?` ~t, Blockable[~u, declaring` t])?: u
 without some deep programming, we won't be able to have the option of doing things like
 `return X + Y`, since `return` breaks order of operations.
 
-TODO: to be consistent, should `function_case` do what `return` does always?  this
-would really change the syntax.
-```
-(min, ~T, Other T):
-    if T <= Other T {T} else {Other T}
-Min: (min Value_1, Value_2)
-```
-Not a big fan of this notation, since it would require getting rid of static variables
-(e.g., `min Value_1` looks like a static variable).
-
 ### type manipulation
 
 Plain-old-data objects can be thought of as merging all fields
 in this way:
 ```
-object == merge(object fields(), [$Field Name: $Field value])
+object == merge[object fields(), [$Field Name: $Field value]]
 ```
 
 TODO: good ways to do keys and values for an object type (e.g., like TypeScript).
-see if there's a better way to do it, e.g., `object valued(um[$$value])`, so
+see if there's a better way to do it, e.g., `object valued[um[$$value]]`, so
 it's easy to see that all field names are the same, just values that change.
 
 Here are some examples of changing the nested fields on an object
 or a container, e.g., to convert an array or object to one containing futures.
 
-TODO: do we want to use `some_stuff[x]` to define functions that return types
-and `some_stuff(x)` to define functions that return instances?
-then we wouldn't need to do the `new[x]` business.  the most consistent would
-be to do `fn(Int): Int` to return an int instance and `fn(Int): int` to return
-the int constructor, but that's almost never useful.  but if we do
-`fn[x]: y` to indicate we're returning types, that might be convenient.  we'd
-need to support `t[x, y, z] == x t[y, z]`, etc., if we want to be consistent
-with how functions work.  can we distinguish lambdas `$X` and `$x` for being
-an instance function or a type function?
-can we avoid breaking things like `Array[3]` as well?  probably.
-`some_fun(X)[3]` will always be array indexing since we'd need `some_fun[X][3]`
-to be type manipulation.
-TODO: do we want to rename the default `fn[...]`
-to something like `tn[...]`? (type manipulation) or `to[...]` maybe?
 
 ```
 # base case, needs specialization.
-nest[of, to[nested: ~t]: ~new_nested]: disallowed
+nest[of, new[nested: ~t]: ~new_nested]: disallowed
 
 # container specialization.
 # e.g., `nest[array[int], um[$$nested]] == array[um[int]]`,
 # or you can do `array[int] nest[um[$$nested]]` for the same effect.
-nest[container[of: ~nested, ~at], to[nested]: ~new_nested]: container[of: new_nested, at]
+nest[container[of: ~nested, ~at], new[nested]: ~new_nested]: container[of: new_nested, at]
 
 # object specialization.
 # e.g., `nest[hm[ok: $$nested, er: some_er], [X: int, Y: str]]`
 # to make `[X: hm[ok: int, er: some_er], Y: hm[ok: str, er: some_er]]`,
 # or you can do `hm[ok: $$nested, er: some_er] nest[[X: int, Y: str]]` for the same effect.
-nest[~object, to[nested: object values()]: ~new_nested]: merge
+nest[~object, new[nested: object values()]: ~new_nested]: merge
 [   object fields()
-    [$Field Name: to[nested: $$Field value]]
+    [$Field Name: new[nested: $$Field value]]
 ]
 ```
 
