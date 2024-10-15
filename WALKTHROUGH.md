@@ -7723,25 +7723,29 @@ the int constructor, but that's almost never useful.  but if we do
 need to support `t[x, y, z] == x t[y, z]`, etc., if we want to be consistent
 with how functions work.  can we distinguish lambdas `$X` and `$x` for being
 an instance function or a type function?
+can we avoid breaking things like `Array[3]` as well?  probably.
+`some_fun(X)[3]` will always be array indexing since we'd need `some_fun[X][3]`
+to be type manipulation.
+TODO: do we want to rename the default `fn[...]`
+to something like `tn[...]`? (type manipulation) or `to[...]` maybe?
 
 ```
 # base case, needs specialization.
-nest(of, fn(nested: ~t): new[~new_nested]): unknown
+nest[of, to[nested: ~t]: ~new_nested]: disallowed
 
 # container specialization.
-# e.g., `nest(array[int], um[$$nested]) == array[um[int]]`,
-# or you can do `array[int] nest(um[$$nested])` for the same effect.
-nest(container[of: ~nested, ~at], fn(nested): new[~new_nested]):
-    container[of: new_nested, at]
+# e.g., `nest[array[int], um[$$nested]] == array[um[int]]`,
+# or you can do `array[int] nest[um[$$nested]]` for the same effect.
+nest[container[of: ~nested, ~at], to[nested]: ~new_nested]: container[of: new_nested, at]
 
 # object specialization.
-# e.g., `nest(hm[ok: $$nested, er: some_er], [X: int, Y: str])`
+# e.g., `nest[hm[ok: $$nested, er: some_er], [X: int, Y: str]]`
 # to make `[X: hm[ok: int, er: some_er], Y: hm[ok: str, er: some_er]]`,
-# or you can do `hm[ok: $$nested, er: some_er] nest([X: int, Y: str])` for the same effect.
-nest(~object, fn(nested: object values()): new[~new_nested]): merge
-(   object fields()
-    [$Field Name: fn(nested: $$Field value)]
-)
+# or you can do `hm[ok: $$nested, er: some_er] nest[[X: int, Y: str]]` for the same effect.
+nest[~object, to[nested: object values()]: ~new_nested]: merge
+[   object fields()
+    [$Field Name: to[nested: $$Field value]]
+]
 ```
 
 # implementation
