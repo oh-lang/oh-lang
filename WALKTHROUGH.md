@@ -207,7 +207,7 @@ memory, these safe functions are a bit more verbose than the unchecked functions
         with `X` and `W` as readonly references, `Y` as mutable reference, and `Z` as a temporary.
     * `"My String Interpolation is $(X, Y: Z)"` to add `(X: *value-of-X*, Y: *value-of-Z*)` to the string.
     * `f(A: 3, B: "hi")` to call a function, and `f(A: int, B: str): null` to declare a function.
-    * `A(_ x(), _ Y)` to call `A x()` then `A Y` with [sequence building](#sequence-building)
+    * `A (_ x(), _ Y)` to call `A x()` then `A Y` with [sequence building](#sequence-building)
         and return them in an argument object with fields `X` and `Y`, i.e., `(X: A x(), Y: A Y)`.
         This allows `X` and `Y` to be references.  This can be useful e.g., when `A` is an expression
         that you don't want to add a local variable for, e.g., `my_long_computation() (_ x(), _ Y)`.
@@ -222,17 +222,17 @@ memory, these safe functions are a bit more verbose than the unchecked functions
         where `of` is the generic type.  See [generic/template functions](#generictemplate-functions) for more.
     * `[Greeting: str, Times: int] = destructure_me()` to do destructuring of a return value
         see [destructuring](#destructuring).
-    * `A[_ x(), _ Y]` to call `A x()` then `A Y` with [sequence building](#sequence-building)
+    * `A [_ x(), _ Y]` to call `A x()` then `A Y` with [sequence building](#sequence-building)
         and return them in an object with fields `X` and `Y`, i.e., `[X: A x(), Y: A Y]`.
         You can also consider them as ordered, e.g.,
-        `Results: A[_ x(), _ Y], print("${Results[0]}, ${Results[1]})`.
-        TODO: We can technically distinguish `A[_ x()]` (sequence building) from `A[x()]` (array access),
-        but is this confusing from a developer/grammar/syntax?
+        `Results: A [_ x(), _ Y], print("${Results[0]}, ${Results[1]})`.
+        TODO: We can technically distinguish `A [_ x()]` (sequence building) from `A[x()]` (array access),
+        but is this confusing from a developer/grammar/syntax?  maybe we always add a space in formatting.
 * `{}` for blocks and sequence building
     * `{...}` to effectively indent `...`, e.g., `if Condition {do_thing()} else {do_other_thing(), 5}`
         * Note that braces `{}` are *optional* if you actually go to the next line and indent,
             but they are recommended for long blocks.
-    * `A{_ x(), _ Y}` with [sequence building](#sequence-building), 
+    * `A {_ x(), _ Y}` with [sequence building](#sequence-building), 
         calling `A x()` and `A Y`, returning `A` if it's a temporary otherwise `A Y`
     * `"My String Interpolation is ${missing(), X}"` to add `X` to the string.
         Note that only the last element in the `${}` is added, but `missing()` will still be evaluated.
