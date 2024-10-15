@@ -7701,20 +7701,37 @@ Not a big fan of this notation, since it would require getting rid of static var
 
 ### type manipulation
 
-TODO: good ways to do keys and values for an object type (e.g., like TypeScript).
+Plain-old-data objects can be thought of as merging all fields
+in this way:
+```
+object == merge(object fields(), [$Field Name: $Field value])
+```
 
-If you have an object type like `[X: int, Y: str]`, we have a few helpful methods
-to manipulate the field types.
+TODO: good ways to do keys and values for an object type (e.g., like TypeScript).
+see if there's a better way to do it, e.g., `object valued(um[$$value])`, so
+it's easy to see that all field names are the same, just values that change.
+
+Here are some examples of changing the nested fields on an object
+or a container, e.g., to convert an array or object to one containing futures.
 
 ```
-# TODO: does this incomplete type even make sense (`um`)??
-# e.g., `nest[um, in: array[int]] == array[um[int]]`
-nest[of, in: container[of: ~value, ~at]]: container[of: of[value], at]
-# TODO: what's the syntax here???
-# e.g., `nest[hm[ok: $of, er], in: [X: int, Y: str]] == [X: hm[ok: int, er], Y: hm[ok: int, er]]`
-# should it be something like `hm[ok: $of, er: ex_er] apply([X: int, Y: str])` ???
-nest[of, in: object[]: [at: object ats()][at: of[object[at]]]
-nest[um, in: [X: int, Y: str]]
+# base case, needs specialization.
+nest(of, fn(nested: ~t): new[~new_nested]): unknown
+
+# container specialization.
+# e.g., `nest(array[int], um[$$nested]) == array[um[int]]`,
+# or you can do `array[int] nest(um[$$nested])` for the same effect.
+nest(container[of: ~nested, ~at], fn(nested): new[~new_nested]):
+    container[of: new_nested, at]
+
+# object specialization.
+# e.g., `nest(hm[ok: $$nested, er: some_er], [X: int, Y: str])`
+# to make `[X: hm[ok: int, er: some_er], Y: hm[ok: str, er: some_er]]`,
+# or you can do `hm[ok: $$nested, er: some_er] nest([X: int, Y: str])` for the same effect.
+nest(~object, fn(nested: object values()): new[~new_nested]): merge
+(   object fields()
+    [$Field Name: fn(nested: $$Field value)]
+)
 ```
 
 # implementation
