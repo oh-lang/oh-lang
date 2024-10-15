@@ -236,7 +236,7 @@ memory, these safe functions are a bit more verbose than the unchecked functions
         calling `A x()` and `A Y`, returning `A` if it's a temporary otherwise `A Y`
     * `"My String Interpolation is ${missing(), X}"` to add `X` to the string.
         Note that only the last element in the `${}` is added, but `missing()` will still be evaluated.
-* `~` to declare a template type within a function, e.g., `my_generic_function(Value: ~u): u` to declare
+* `~` to infer a template type within a function, e.g., `my_generic_function(Value: ~u): u` to declare
     a function that takes a generic type `u` and returns it.  For more details, see
     [generic/template functions](#generictemplate-functions).
 * `$` for inline block and lambda arguments
@@ -523,9 +523,8 @@ print(counter())    # 124
 
 ```
 # defining a function that takes two type constructors as arguments,
-# one of them being named, and returns a type constructor:
-some_constructor[~x, named_new: ~y]: one_of[x, y]
-    if random(dbl) < 0.5 {x} else {named_new}
+# one of them being named (`of` is the default name), and returns a type constructor:
+some_constructor[of, named_new]: if random(dbl) < 0.5 {of} else {named_new}
 
 some_type: some_constructor[int, named_new: dbl] # int or dbl with 50-50 probability
 X: some_type(1234)  # `X` is either `int(1234)` or `dbl(1234)`.
@@ -3468,8 +3467,8 @@ with generic names.
 
 For functions that accept multiple types as input/output, we define template types
 inline, e.g., `copy(Value: ~t): t`, using `~` for where the compiler should infer
-what the type is.  You can use any unused identifier for the new
-type, e.g., `~q` or `~sandwich_type`.
+what the type is.  You can use any unused identifier for the new type, e.g.,
+`~q` or `~sandwich_type`.
 
 ```
 copy(Value: ~t): t
@@ -3482,22 +3481,27 @@ Result: copy(Value: Vector3)    # prints "got vector3(X: 0, Y: 5, Z: 0)".
 Vector3 == Result           # equals True
 ```
 
-Alternatively, you can add the new types in brackets just after the function name,
-e.g., `copy[of: my_type_constraints](Value: of): of`, which allows you to specify any
+You can also add the new types in brackets just after the function name,
+e.g., `copy[t: my_type_constraints](Value: ~t): t`, which allows you to specify any
 type constraints (`my_type_constraints` being optional).  Note that types defined with
-`~` are always "default named", but to get a default name in the type brackets
-you need to use `of`; see [default named generic types](#default-named-generic-types).
-To give some examples:
+`~` are inferred and therefore can never be explicitly given inside of the brackets,
+e.g., `copy[t: int](Value: 3)` is invalid here, but `copy(Value: 3)` is fine.
+To get a "default named" type, use `of` in the brackets.  If the type is not inferred
+somewhere else (with `~`), you don't need to specify `[of: int]` to specialize to `int`,
+you can just use `[int]` if it's default named, otherwise `[whatever_type: int]`.
+See also [default named generic types](#default-named-generic-types).  For example:
 
 ```
+# this generic function does not infer any types because it doesn't use `~`.
 copy[of](Value: of): of
     ...
     of(Value)
 
-# can be called like this, which implicitly infers `of`:
-copy(Value: 3)  # will return the integer `3`
+# because the type is not inferred, you always need to specify it in brackets.
+# you can use `of: the_type` but this is not idiomatic:
+copy[of: int](Value: 3) # will return the integer `3`
 
-# or explicitly typed like this:
+# because it is default named, you can just put in the type without a field name.
 copy[dbl](Value: 3)     # will return `3.0`
 ```
 
@@ -3507,27 +3511,23 @@ to explicitly tell the compiler that we don't want default names to apply,
 which we do using the `@Named` namespace.
 
 ```
+# this generic is inferred (recommended) at the call site:
 copy(@Named ~Value): value
     ...
     value(@Named Value)
 
-# or with declare-ahead:
+# it can be called like this, which implicitly infers the `value` type:
+copy(Value: 3)  # returns the integer `3`
+
+# this generic needs to be specified in brackets at the call site: 
 copy[value](@Named Value): value
     ...
     value(@Named Value)
 
-# it can be called like this, which implicitly infers `value`:
-copy(Value: 3)  # returns the integer `3`
-
-# or explicitly typed like this:
+# and because it's not default named (i.e., it's named `value` not `of`),
+# you need to call it like this:
 copy[value: dbl](Value: 3)  # will return `3.0`
 ```
-
-TODO: we should be able to use `function[t: some_constraint](My_value: ~t): ...`.
-Maybe for functions we always annotate where we infer the type, e.g.,
-`~t` happens where we infer, so we don't put it into the generic specification
-at the callsite, e.g., `function[t: int](My_value: 3)`.  Maybe if `~` is used,
-then we don't allow putting it into an explicit generic specification.
 
 If you want default-named arguments with generics, see the next section.
 
@@ -3535,7 +3535,8 @@ If you want default-named arguments with generics, see the next section.
 
 TODO: restrictions here, do we need to only have a single argument, so that
 argument names are unique?  it's probably ok if we have an `@order_independent`
-or use `First ~T` and `Second ~U` to indicate order is ok.
+or use `@First ~T` and `@Second ~U` to indicate order is ok.
+or need to use `@Named` on some of them.
 maybe we see if there's an issue when compiling the generics and then complain at compile time.
 
 Similar to the non-generic case, if the `Variable_case` identifier
@@ -3565,15 +3566,13 @@ Default naming also works if we specify the generics ahead of the function argum
 like this:
 
 ```
-logger[of](Of): of
+logger[of: some_constraint](Of): of
     print("got ${Of}")
     Of
 
-# can be called like this, which implicitly infers `of`:
-logger(3)   # returns the integer `3`
-
-# or explicitly typed like this:
-logger[dbl](3)     # will return `3.0`
+# need to explicitly add the type since it's never inferred.
+logger[int](3)  # returns the integer `3`
+logger[dbl](3)  # will return `3.0`
 ```
 
 If we have a named generic type, we simply do not include a `@Named` namespace
@@ -3584,10 +3583,6 @@ logger[value](Value): value
     print("got ${Value}")
     Value
 
-# it can be called like this, which implicitly infers `value`:
-logger(3)   # returns the integer `3`
-
-# or explicitly typed like this:
 logger[value: dbl](3)  # will return `3.0`
 ```
 
@@ -3616,6 +3611,7 @@ is passed in: `my_function(~My_name: my_name)` or `my_function(~My_name) for sho
 
 ### generic require
 
+TODO: should we make this an annotation instead?  `@Require: of is orderable`??
 `Require` is a special generic field that allows you to include a function,
 method, or variable only if it meets some compile-time constraints.  It is
 effectively a keyword within a generic specification, so it can't be used
@@ -4616,6 +4612,8 @@ Pair_lot: lot[at: str, pair[first: int, second: dbl]]
 ```
 
 ### default named generic types
+
+TODO: talk about inferring things here
 
 The default name for a type is `of`, mostly to avoid conflicts with
 `type` which is a valid verb (e.g., to type in characters), but also
@@ -5945,10 +5943,11 @@ The way we achieve that is through using an array iterator:
 # the iterator will become an array iterator.  this allows us to check for
 # `@only` annotations (e.g., if `Iterator` was not allowed to change) and
 # throw a compile error.
-next(Iterator; iterator[~t] @becomes(array_iterator[t]), Array: array[t])?: t
+next(Iterator; iterator[t] @becomes(array_iterator[t]), Array: array[~t])?: t
     Iterator = array_iterator[t]()
     Iterator;;next(Array)
 
+# TODO: probably can do `(Of;:.)`
 array_iterator[of]: iterator[of]
 {   Next; index
     ;;renew(Start: index = 0):
@@ -7131,7 +7130,7 @@ variables will be null if the `Tree` is not of that type, but they will also be
 a copy and any changes to the new variables will not be reflected in `Tree`.
 
 ```
-one_of[..., ~t]: []
+one_of[..., t]: []
 {   # returns true if this `one_of` is of type `T`, also allowing access
     # to the underlying value by passing it into the function.
     # we return `never` here because we don't want people to use the
@@ -7701,7 +7700,9 @@ or a container, e.g., to convert an array or object to one containing futures.
 
 ```
 # base case, needs specialization.
-nest[of, new[nested: ~t]: ~new_nested]: disallowed
+# TODO: do we need `~` here for `new_nested`??
+#       i think so, because it's a type that's not specified in the brackets of `new[...]`.
+nest[of, new[nested]: ~new_nested]: disallowed
 
 # container specialization.
 # e.g., `nest[array[int], um[$$nested]] == array[um[int]]`,
@@ -7712,10 +7713,33 @@ nest[container[of: ~nested, ~at], new[nested]: ~new_nested]: container[of: new_n
 # e.g., `nest[hm[ok: $$nested, er: some_er], [X: int, Y: str]]`
 # to make `[X: hm[ok: int, er: some_er], Y: hm[ok: str, er: some_er]]`,
 # or you can do `hm[ok: $$nested, er: some_er] nest[[X: int, Y: str]]` for the same effect.
-nest[~object, new[nested: object values()]: ~new_nested]: merge
+nest[object, new[nested]: ~new_nested]: merge
 [   object fields()
     [$Field Name: new[nested: $$Field value]]
 ]
+```
+
+Here are some examples of unnesting fields on an object/future/result.
+
+```
+# base case, needs specialization
+unnest[of]: disallowed
+
+# container specialization
+# e.g., `unnest[array[int]] == int` and `unnest[set[dbl]] == dbl`.
+unnest[container[of: ~nested, ~at]]: nested
+
+# future specialization
+# e.g., `unnest[um[str]] == str`.
+unnest[um[~nested]]: nested
+
+# result specialization
+# e.g., `unnest[hm[str, er: int]] == str`.
+unnest[hm[ok: ~nested, ~er]]: nested
+
+# null specialization
+# e.g., `unnest[int?] == int`.
+unnest[one_of[...~nested, null]]: one_of[...nested]
 ```
 
 # implementation
