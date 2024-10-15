@@ -7714,6 +7714,16 @@ it's easy to see that all field names are the same, just values that change.
 Here are some examples of changing the nested fields on an object
 or a container, e.g., to convert an array or object to one containing futures.
 
+TODO: do we want to use `some_stuff[x]` to define functions that return types
+and `some_stuff(x)` to define functions that return instances?
+then we wouldn't need to do the `new[x]` business.  the most consistent would
+be to do `fn(Int): Int` to return an int instance and `fn(Int): int` to return
+the int constructor, but that's almost never useful.  but if we do
+`fn[x]: y` to indicate we're returning types, that might be convenient.  we'd
+need to support `t[x, y, z] == x t[y, z]`, etc., if we want to be consistent
+with how functions work.  can we distinguish lambdas `$X` and `$x` for being
+an instance function or a type function?
+
 ```
 # base case, needs specialization.
 nest(of, fn(nested: ~t): new[~new_nested]): unknown
