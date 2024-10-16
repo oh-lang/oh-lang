@@ -175,7 +175,7 @@ memory or otherwise throw.  By default, `Array[100] = 123` will increase the siz
 of the array if necessary, and this could potentially throw in a memory-constrained
 environment (or if the index was large).  If you need to check for these situations,
 there is a safe API, e.g., `Result: Array at(100, Put: 123)` and `Result` can then
-be checked for `is_uh()`, etc.  For convenience for cases where you don't care about
+be checked for `is_er()`, etc.  For convenience for cases where you don't care about
 memory, these safe functions are a bit more verbose than the unchecked functions.
 
 
@@ -1087,9 +1087,9 @@ and `my_function Outputs`.
 Similar to defining a function overload, we can define type overloads for generic types.
 For example, the generic result class in oh-lang is `hm[ok, er: non_null]`, which
 encapsulates an ok value (`ok`) or a non-nullable error (`er`).  For your custom class you
-may not want to specify `hm[ok: my_ok_type, er: my_class_uh]` all the time for your custom
-error type `my_class_uh`, so you can define `hm[of]: hm[ok: of, er: my_class_uh]` and
-use e.g. `hm[int]` to return an integer or an error of type `my_class_uh`.  Shadowing variables is
+may not want to specify `hm[ok: my_ok_type, er: my_class_er]` all the time for your custom
+error type `my_class_er`, so you can define `hm[of]: hm[ok: of, er: my_class_er]` and
+use e.g. `hm[int]` to return an integer or an error of type `my_class_er`.  Shadowing variables is
 invalid in oh-lang, but overloads are valid.  Note however that we disallow redefining
 an overload, as that would be the equivalent of shadowing.
 
@@ -2652,7 +2652,7 @@ my_overload(Y: str): [X?: int]
     # this is essentially an implementation of `X?: int(Y), return [X]`
     what int(Y)
         Ok: $[X: Ok]
-        Uh: $[]
+        Er: $[]
 
 {X}: my_overload(Y: "1234")  # calls (2) if it's defined, otherwise it's a compiler error.
 {X?}: my_overload(Y: "abc")  # calls (1) or (3) if one is defined, otherwise it's a compiler error.
@@ -3799,7 +3799,7 @@ a few methods, but don't use `:` since we're no longer declaring the class.
 ```
 # static function that constructs a type or errors out
 example_class(Z: dbl): hm[ok: example_class, er: str]
-    X: Z round() int() assert(Uh: "Need `round(Z)` representable as an `int`.")
+    X: Z round() int() assert(Er: "Need `round(Z)` representable as an `int`.")
     example_class(X)
 
 # static function that is not a constructor.
@@ -5171,10 +5171,10 @@ be an error string.
 To make it easy to handle errors being returned from other functions, oh-lang uses
 the `assert` method on a result class.  E.g., `Ok: My_hm assert()` which will convert
 the `My_hm` result into the `ok` value or it will return the `er` error in `My_hm` from
-the current function block, e.g., `Ok: what My_hm { Ok: {Ok}, Uh: {return Uh}}`.
+the current function block, e.g., `Ok: what My_hm { Ok: {Ok}, Er: {return Er}}`.
 It is something of a macro like `?` in Rust.  Note that `assert` doesn't panic.
 There are a few helpful overloads for the `assert()` method, including changing the
-error type `er` by including it, e.g., `My_hm assert(Uh: new_uh_type("Bad"))`.
+error type `er` by including it, e.g., `My_hm assert(Er: new_er_type("Bad"))`.
 
 Note that we can automatically convert a result type into a nullable version
 of the `ok` type, e.g., `hm[ok: string, er: error_code]` can be converted into
@@ -5192,9 +5192,9 @@ Result: if X { ok(3) } else { er("oh no") }
 if Result is_ok()
     print("ok")
 
-# but it'd be nice to transform `Result` into the `Ok` (or `Uh`) value along the way.
+# but it'd be nice to transform `Result` into the `Ok` (or `Er`) value along the way.
 Result is((Ok): print("Ok: ", Ok))
-Result is((Uh): print("Uh: ", Uh))
+Result is((Er): print("Er: ", Er))
 
 # or if you're sure it's that thing, or want the program to terminate if not:
 Ok: Result ?? panic("for sure")
@@ -5246,8 +5246,8 @@ assert(Some_class other_method("hi") > 10)    # throws if `Some_class other_meth
 ```
 
 If you want to customize the return error for an assert, pass it an explicit
-`Uh` argument, e.g., `assert(My_value, Uh: "Was expecting that to be true")`;
-and note that asserts can be called like `My_value assert()` or `Positive assert(Uh: "oops")`.
+`Er` argument, e.g., `assert(My_value, Er: "Was expecting that to be true")`;
+and note that asserts can be called like `My_value assert()` or `Positive assert(Er: "oops")`.
 
 Note that `assert` logic is always run, even in non-debug code.  To only check statements
 in the debug binary, use `debug assert`, which has the same signature as `assert`.  Using
@@ -5261,9 +5261,9 @@ that `assert` will return the correct `er` subclass for the module that it is in
 If a function returns a `hm` type, e.g., `my_function(...): hm[ok, er]`,
 then we can automatically convert its return value into a `one_of[ok, null]`, i.e.,
 a nullable version of the `ok` type.  This is helpful for things like type casting;
-instead of `My_int: what int(My_dbl) {Ok. {Ok}, Uh: {-1}}` you can do
+instead of `My_int: what int(My_dbl) {Ok. {Ok}, Er: {-1}}` you can do
 `My_int: int(My_dbl) ?? -1`.  Although, there is another option that
-doesn't use nulls:  `int(My_dbl) map((Uh): -1)`.
+doesn't use nulls:  `int(My_dbl) map((Er): -1)`.
 
 TODO: should this be valid if `ok` is already a nullable type?  e.g.,
 `my_function(): hm[ok: one_of[int, null], er: str]`.
@@ -7700,20 +7700,18 @@ or a container, e.g., to convert an array or object to one containing futures.
 
 ```
 # base case, needs specialization.
-# TODO: do we need `~` here for `new_nested`??
-#       i think so, because it's a type that's not specified in the brackets of `new[...]`.
-nest[of, new[nested]: ~new_nested]: disallowed
+nest[@Nest_in of, new[nested]: of]: disallowed
 
 # container specialization.
 # e.g., `nest[array[int], um[$$nested]] == array[um[int]]`,
 # or you can do `array[int] nest[um[$$nested]]` for the same effect.
-nest[container[of: ~nested, ~at], new[nested]: ~new_nested]: container[of: new_nested, at]
+nest[container[of: ~nested, ~at], new[nested]: of]: container[of: new[nested], at]
 
 # object specialization.
 # e.g., `nest[hm[ok: $$nested, er: some_er], [X: int, Y: str]]`
 # to make `[X: hm[ok: int, er: some_er], Y: hm[ok: str, er: some_er]]`,
 # or you can do `hm[ok: $$nested, er: some_er] nest[[X: int, Y: str]]` for the same effect.
-nest[object, new[nested]: ~new_nested]: merge
+nest[object, new[nested]: of]: merge
 [   object fields()
     [$Field Name: new[nested: $$Field value]]
 ]
