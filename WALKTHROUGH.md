@@ -1107,12 +1107,78 @@ and `one_of[x, y, null]` becomes `one_of[x, y]`, and `hm[ok: type1, uh: type2]` 
 # or maybe `if of == one_of[...y, null] {y} else {of}`.
 ```
 
+## type manipulation
+
+Plain-old-data objects can be thought of as merging all fields
+in this way:
+```
+object == merge[object fields(), [$Field Name: $Field value]]
+```
+
+TODO: good ways to do keys and values for an object type (e.g., like TypeScript).
+see if there's a better way to do it, e.g., `object valued[um[$$value]]`, so
+it's easy to see that all field names are the same, just values that change.
+
+Here are some examples of changing the nested fields on an object
+or a container, e.g., to convert an array or object to one containing futures.
+
+```
+# base case, needs specialization.
+nest[@Nest_in of, new[nested]: of]: disallowed
+
+# container specialization.
+# e.g., `nest[array[int], um[$$nested]] == array[um[int]]`,
+# or you can do `array[int] nest[um[$$nested]]` for the same effect.
+nest[container[of: ~nested, ~at], new[nested]: of]: container[of: new[nested], at]
+
+# object specialization.
+# e.g., `nest[hm[ok: $$nested, er: some_er], [X: int, Y: str]]`
+# to make `[X: hm[ok: int, er: some_er], Y: hm[ok: str, er: some_er]]`,
+# or you can do `hm[ok: $$nested, er: some_er] nest[[X: int, Y: str]]` for the same effect.
+nest[object, new[nested]: of]: merge
+[   object fields()
+    [$Field Name: new[nested: $$Field value]]
+]
+```
+
+Here are some examples of unnesting fields on an object/future/result.
+
+```
+# base case, needs specialization
+unnest[of]: disallowed
+
+# container specialization
+# e.g., `unnest[array[int]] == int` and `unnest[set[dbl]] == dbl`.
+unnest[container[of: ~nested, ~at]]: nested
+
+# future specialization
+# e.g., `unnest[um[str]] == str`.
+unnest[um[~nested]]: nested
+
+# result specialization
+# e.g., `unnest[hm[str, er: int]] == str`.
+unnest[hm[ok: ~nested, ~er]]: nested
+
+# null specialization
+# e.g., `unnest[int?] == int`.
+unnest[one_of[...~nested, null]]: one_of[...nested]
+```
+
+Note that if we have a function that returns a type, we must use brackets, e.g.,
+`the_function[...]: the_return_type`, but we can use instances like booleans
+or numbers inside of the brackets (e.g., `array[3, int]` for a fixed size array type).
+Conversely, if we have a function that returns an instance, we must use parentheses,
+e.g., `the_function(...): instance_type`.  In either case, we can use a type as
+an argument, e.g., `nullable(of): bool` or `array3[of]: array[3, of]`.
+
+TODO: `nullable` definition.
+
 # operators and precedence
 
 Almost all operations should have result-like syntax.  e.g., `A * B` can overflow (or run out of memory for `int`).
 same for `A + B` and `A - B`.  `A // B` is safe.  However, instead of making oh-lang always assert,
 we will use `multiply(~First A, Second A): hm[ok: a, Number_conversion er]` and then have
-`A1 * A2` always give an `a` result by panicking if we run out of memory.  i.e.,
+`A1 * A2` always give an `a` instance by panicking if we run out of memory.  i.e.,
 ```
 number::*(You): me
     Result: multiply(Me, You)
@@ -7681,64 +7747,6 @@ check(T?` ~t, Blockable[~u, declaring` t])?: u
 ```
 without some deep programming, we won't be able to have the option of doing things like
 `return X + Y`, since `return` breaks order of operations.
-
-### type manipulation
-
-Plain-old-data objects can be thought of as merging all fields
-in this way:
-```
-object == merge[object fields(), [$Field Name: $Field value]]
-```
-
-TODO: good ways to do keys and values for an object type (e.g., like TypeScript).
-see if there's a better way to do it, e.g., `object valued[um[$$value]]`, so
-it's easy to see that all field names are the same, just values that change.
-
-Here are some examples of changing the nested fields on an object
-or a container, e.g., to convert an array or object to one containing futures.
-
-
-```
-# base case, needs specialization.
-nest[@Nest_in of, new[nested]: of]: disallowed
-
-# container specialization.
-# e.g., `nest[array[int], um[$$nested]] == array[um[int]]`,
-# or you can do `array[int] nest[um[$$nested]]` for the same effect.
-nest[container[of: ~nested, ~at], new[nested]: of]: container[of: new[nested], at]
-
-# object specialization.
-# e.g., `nest[hm[ok: $$nested, er: some_er], [X: int, Y: str]]`
-# to make `[X: hm[ok: int, er: some_er], Y: hm[ok: str, er: some_er]]`,
-# or you can do `hm[ok: $$nested, er: some_er] nest[[X: int, Y: str]]` for the same effect.
-nest[object, new[nested]: of]: merge
-[   object fields()
-    [$Field Name: new[nested: $$Field value]]
-]
-```
-
-Here are some examples of unnesting fields on an object/future/result.
-
-```
-# base case, needs specialization
-unnest[of]: disallowed
-
-# container specialization
-# e.g., `unnest[array[int]] == int` and `unnest[set[dbl]] == dbl`.
-unnest[container[of: ~nested, ~at]]: nested
-
-# future specialization
-# e.g., `unnest[um[str]] == str`.
-unnest[um[~nested]]: nested
-
-# result specialization
-# e.g., `unnest[hm[str, er: int]] == str`.
-unnest[hm[ok: ~nested, ~er]]: nested
-
-# null specialization
-# e.g., `unnest[int?] == int`.
-unnest[one_of[...~nested, null]]: one_of[...nested]
-```
 
 # implementation
 
