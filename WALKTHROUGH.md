@@ -1082,7 +1082,7 @@ TODO: types of functions, shouldn't really have `new`.
 TODO: we should discuss the things functions do have, like `my_function Inputs`
 and `my_function Outputs`.
 
-## type overloads (generics only)
+## type overloads
 
 Similar to defining a function overload, we can define type overloads for generic types.
 For example, the generic result class in oh-lang is `hm[ok, er: non_null]`, which
@@ -1092,20 +1092,6 @@ error type `my_class_er`, so you can define `hm[of]: hm[ok: of, er: my_class_er]
 use e.g. `hm[int]` to return an integer or an error of type `my_class_er`.  Shadowing variables is
 invalid in oh-lang, but overloads are valid.  Note however that we disallow redefining
 an overload, as that would be the equivalent of shadowing.
-
-## nullable types
-
-TODO: probably want a function like `extract(~type): other_type` which will extract
-the element of `type`, e.g., `array[int]` becomes `int`, `one_of[str, null]` becomes `str`,
-and `one_of[x, y, null]` becomes `one_of[x, y]`, and `hm[ok: type1, uh: type2]` becomes `type1`.
-
-```
-# TODO: check notation: `non_null(~t): if nullable(t) {un_null(t)} else t`
-# TODO: find a good way to infer types, e.g., like this (or maybe `@infer y` instead of `~y`):
-# e.g., `non_null[of]: if of == nullable(~y) {y} else {of}`.
-# or maybe `if of == one_of[~y, null] {y} else {of}`.
-# or maybe `if of == one_of[...y, null] {y} else {of}`.
-```
 
 ## type manipulation
 
@@ -1170,8 +1156,31 @@ or numbers inside of the brackets (e.g., `array[3, int]` for a fixed size array 
 Conversely, if we have a function that returns an instance, we must use parentheses,
 e.g., `the_function(...): instance_type`.  In either case, we can use a type as
 an argument, e.g., `nullable(of): bool` or `array3[of]: array[3, of]`.
+Type functions can be specialized in the manner shown above, but instance functions
+cannot be.  TODO: would we want to support that at some point??
 
-TODO: `nullable` definition.
+Here is some nullable type manipulation:
+
+```
+# the `null` type should not be considered nullable because there's
+# nothing that can be unnulled, so ensure there's something not-null in a nullable.
+#   nullable(one_of[dbl, int, str]) == False
+#   nullable(one_of[dbl, int, null]) == True
+#   nullable(one_of[int, null]) == True
+#   nullable(null) == False
+nullable(of): of contains(not[null], null)
+
+# examples
+#   unnull[int] == int
+#   unnull[int?] == int
+#   unnull[array[int?]] == array[int?]
+#   unnull[one_of[array[int], set[dbl], null]] == one_of[array[int], set[dbl]]
+unnull[of]: if nullable(of) {unnest[of]} else {of}
+
+# a definition without nullable, using template specialization:
+unnull[of]: of
+unnull[one_of[...~nested, null]]: nested
+```
 
 # operators and precedence
 
